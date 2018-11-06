@@ -6,6 +6,26 @@ using System.Threading.Tasks;
 
 namespace CreateChilServices
 {
+    public class Services
+    {
+        public string ID { get; set; }
+        public string ItemNumber { get; set; }
+        public string Description { get; set; }
+        public string Airport { get; set; }
+        public string Supplier { get; set; }
+        public string Cost { get; set; }
+        public string Price { get; set; }
+        public string InvoiceInternal { get; set; }
+        public string Itinerary { get; set; }
+        public string Pax { get; set; }
+        public string Task { get; set; }
+        public string Informative { get; set; }
+        public string ParentPax { get; set; }
+        public string Categorias { get; set; }
+        public string FuelId { get; set; }
+        public string CobroParticipacionNj { get; set; }
+        public string ParticipacionCobro { get; set; }
+    }
     public class ComponentChild
     {
         public string Airport { get; set; }
@@ -116,5 +136,11 @@ namespace CreateChilServices
         public object SupplierSite { get; set; }
         public object UUID { get; set; }
         public List<Link6> links { get; set; }
+    }
+    public class WHours
+    {
+        public DateTime Opens { get; set; }
+        public DateTime Closes { get; set; }
+        public string Type { get; set; }
     }
 }

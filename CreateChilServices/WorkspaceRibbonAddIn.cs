@@ -12,6 +12,7 @@ using System.Xml.Linq;
 using CreateChilServices.SOAPICCS;
 using Newtonsoft.Json;
 using RestSharp;
+using RestSharp.Authenticators;
 using RightNow.AddIns.AddInViews;
 using RightNow.AddIns.Common;
 
@@ -27,7 +28,14 @@ namespace CreateChilServices
         public int Packages { get; set; }
         public int BabyPackages { get; set; }
         public string InformativoPadre { get; set; }
-
+        public string ATD { get; set; }
+        public string ATA { get; set; }
+        public List<WHours> WHoursList { get; set; }
+        public string SRType { get; set; }
+        public string Currency { get; set; }
+        public string Supplier { get; set; }
+        public string OUM { get; set; }
+        public string ICAOId { get; set; }
 
         public WorkspaceRibbonAddIn(bool inDesignMode, IRecordContext RecordContext, IGlobalContext GlobalContext)
         {
@@ -37,7 +45,6 @@ namespace CreateChilServices
                 this.RecordContext = RecordContext;
             }
         }
-
         public new void Click()
         {
             try
@@ -53,9 +60,12 @@ namespace CreateChilServices
                         {
                             Incident = (IIncident)RecordContext.GetWorkspaceRecord(WorkspaceRecordType.Incident);
                             IncidentID = Incident.ID;
+                            ICAOId = getICAODesi(IncidentID);
+                            SRType = GetSRType();
                             GetDeleteComponents();
                             CreateChildComponents();
                             MessageBox.Show("Packages Found: " + Packages + " ChildServices Created: " + BabyPackages);
+                            UpdatePackageCost();
                         }
                         break;
                 }
@@ -65,11 +75,7 @@ namespace CreateChilServices
             {
                 MessageBox.Show("Error en Click: " + ex.Message + "Det" + ex.StackTrace);
             }
-
-
-
         }
-
         public bool Init()
         {
             try
@@ -99,6 +105,24 @@ namespace CreateChilServices
                 return false;
 
             }
+        }
+        public string getICAODesi(int Incident)
+        {
+            string Icao = "";
+            ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
+            APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
+            clientInfoHeader.AppID = "Query Example";
+            String queryString = "SELECT CustomFields.co.Aircraft.AircraftType1.ICAODesignator  FROM Incident WHERE ID =" + Incident;
+            clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
+            foreach (CSVTable table in queryCSV.CSVTables)
+            {
+                String[] rowData = table.Rows;
+                foreach (String data in rowData)
+                {
+                    Icao = data;
+                }
+            }
+            return Icao;
         }
         public void GetDeleteComponents()
         {
@@ -180,7 +204,6 @@ namespace CreateChilServices
                             component.ItemNumber = substrings[2];
                             component.Itinerary = Convert.ToInt32(substrings[3]);
                             InformativoPadre = substrings[4];
-                            MessageBox.Show("InformativoPadre: " + InformativoPadre);
                             GetComponents(component);
                         }
                     }
@@ -721,9 +744,626 @@ namespace CreateChilServices
             }
 
         }
+
+        public void InsertPayable(Services service)
+        {
+            try
+            {
+                var client = new RestClient("https://iccsmx.custhelp.com/");
+                var request = new RestRequest("/services/rest/connect/v1.4/CO.Payables/", Method.POST)
+                {
+                    RequestFormat = DataFormat.Json
+                };
+                string body = "{";
+                body += "\"Supplier\":\"" + Supplier + "\",";
+                body += "\"TicketAmount\":\"" + service.Cost + "\",";
+                body += "\"Currency\":";
+                body += "{";
+                body += "\"id\":" + (Currency == "MXN" ? 2 : 1).ToString() + "";
+                body += "},";
+                body += "\"Services\":";
+                body += "{";
+                body += "\"id\":" + service.ParentPax + "";
+                body += "}";
+                body += "}";
+
+                GlobalContext.LogMessage(body);
+                request.AddParameter("application/json", body, ParameterType.RequestBody);
+                request.AddHeader("Authorization", "Basic ZW9saXZhczpTaW5lcmd5KjIwMTg=");
+                request.AddHeader("X-HTTP-Method-Override", "POST");
+                request.AddHeader("OSvC-CREST-Application-Context", "Create Payable");
+                IRestResponse response = client.Execute(request);
+                var content = response.Content;
+                if (response.StatusCode == HttpStatusCode.Created)
+                {
+
+                }
+                else
+                {
+                    MessageBox.Show(content);
+                }
+
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error en creación de child: " + ex.Message + "Det" + ex.StackTrace);
+            }
+
+        }
+
+        public bool GetItineraryCountries(int Itineray)
+        {
+            try
+            {
+                bool res = true;
+                ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
+                APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
+                clientInfoHeader.AppID = "Query Example";
+                String queryString = "SELECT ToAirport.Country.LookupName,FromAirport.Country.LookupName FROM CO.Itinerary WHERE ID  = " + Itineray + "";
+                clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
+                foreach (CSVTable table in queryCSV.CSVTables)
+                {
+                    String[] rowData = table.Rows;
+                    foreach (String data in rowData)
+                    {
+                        Char delimiter = '|';
+                        string[] substrings = data.Split(delimiter);
+                        if (substrings[0] != "MX" || substrings[1] != "MX")
+                        {
+                            res = false;
+                        }
+                    }
+                }
+
+                return res;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.StackTrace);
+                return true;
+            }
+        }
+        public string[] GetCountryLookItinerary(int itinerary)
+        {
+            try
+            {
+                string[] res = new string[2];
+                ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
+                APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
+                clientInfoHeader.AppID = "Query Example";
+                String queryString = "SELECT ArrivalAirport.Country.LookupName,ToAirport.LookupName FROM CO.Itinerary WHERE ID =" + itinerary + "";
+                clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
+                foreach (CSVTable table in queryCSV.CSVTables)
+                {
+                    String[] rowData = table.Rows;
+                    foreach (String data in rowData)
+                    {
+                        Char delimiter = '|';
+                        string[] substrings = data.Split(delimiter);
+                        substrings[0] = substrings[0] == "MX" ? "DOMESTIC" : "INTERNATIONAL";
+                        substrings[1] = substrings[1] == "MX" ? "DOMESTIC" : "INTERNATIONAL";
+                        res = substrings;
+                    }
+                }
+                return res;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.StackTrace);
+                return null;
+            }
+        }
+        private string GetMainHour(string ata, string atd)
+        {
+            try
+            {
+                DateTime ArriveDate = DateTime.Parse(ata);
+                DateTime DeliverDate = DateTime.Parse(atd);
+                string hour = "EXTRAORDINARIO";
+                if (WHoursList.Count > 0)
+                {
+                    foreach (WHours w in WHoursList)
+                    {
+                        double totalminutesOpen = (ArriveDate - w.Opens).TotalMinutes;
+                        double totalminutesClose = (w.Closes - DeliverDate).TotalMinutes;
+                        if (ArriveDate.CompareTo(w.Opens) >= 0 && ArriveDate.CompareTo(w.Closes) <= 0 && w.Type == "NORMAL" &&
+                                                    DeliverDate.CompareTo(w.Opens) >= 0 && DeliverDate.CompareTo(w.Closes) <= 0)
+                        {
+                            hour = "NORMAL";
+                        }
+                        else if (ArriveDate.CompareTo(w.Opens) >= 0 && ArriveDate.CompareTo(w.Closes) <= 0 && w.Type == "CRITICO" &&
+                            DeliverDate.CompareTo(w.Opens) >= 0 && DeliverDate.CompareTo(w.Closes) <= 0)
+                        {
+                            hour = "CRITICO";
+                        }
+                    }
+                }
+                return hour;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message + "Det:" + ex.StackTrace);
+                return "";
+            }
+        }
+        private void getArrivalHours(int Arrival, string Open, string Close)
+        {
+            try
+            {
+                ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
+                APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
+                clientInfoHeader.AppID = "Query Example";
+                String queryString = "SELECT OpensZULUTime,ClosesZULUTime,Type FROM CO.Airport_WorkingHours WHERE Airports =" + Arrival + "";
+                clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1000, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
+                WHoursList = new List<WHours>();
+                foreach (CSVTable table in queryCSV.CSVTables)
+                {
+                    String[] rowData = table.Rows;
+                    foreach (String data in rowData)
+                    {
+                        WHours hours = new WHours();
+                        Char delimiter = '|';
+                        String[] substrings = data.Split(delimiter);
+                        hours.Opens = DateTime.Parse(Open + " " + substrings[0].Trim());
+                        hours.Closes = DateTime.Parse(Close + " " + substrings[1].Trim());
+                        switch (substrings[2].Trim())
+                        {
+                            case "1":
+                                hours.Type = "EXTRAORDINARIO";
+                                break;
+                            case "2":
+                                hours.Type = "CRITICO";
+                                break
+                                    ;
+                            case "25":
+                                hours.Type = "NORMAL";
+                                break;
+                        }
+                        WHoursList.Add(hours);
+                    }
+                }
+
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("getArrivalHours" + ex.Message + "DEtalle: " + ex.StackTrace);
+
+            }
+        }
+        private void GetItineraryHours(int Itinerary)
+        {
+            try
+            {
+                ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
+                APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
+                clientInfoHeader.AppID = "Query Example";
+                String queryString = "SELECT ATA_ZUTC,ATD_ZUTC,ArrivalAirport FROM CO.Itinerary WHERE Incident1 =" + IncidentID + " AND ID =" + Itinerary + "";
+                clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
+                foreach (CSVTable table in queryCSV.CSVTables)
+                {
+                    String[] rowData = table.Rows;
+                    foreach (String data in rowData)
+                    {
+                        Char delimiter = '|';
+                        String[] substrings = data.Split(delimiter);
+                        ATA = DateTimeOffset.Parse(substrings[0]).ToString();
+                        ATD = DateTimeOffset.Parse(substrings[1]).ToString();
+                        getArrivalHours(String.IsNullOrEmpty(substrings[2]) ? 0 : Convert.ToInt32(substrings[2]), substrings[0].Substring(0, 10), substrings[1].Substring(0, 10));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("GetItineraryHours" + ex.Message + "DEtalle: " + ex.StackTrace);
+            }
+        }
+        public void UpdatePackageCost()
+        {
+            try
+            {
+                List<Services> services = new List<Services>();
+                ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
+                APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
+                clientInfoHeader.AppID = "Query Example";
+                String queryString = "SELECT ID,Services,Itinerary,ItemNumber,Airport FROM CO.Services  WHERE Incident =" + IncidentID + "  AND Paquete = '0' AND Componente = '1' Order BY Services.CreatedTime ASC";
+                clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 10000, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
+                foreach (CSVTable table in queryCSV.CSVTables)
+                {
+                    String[] rowData = table.Rows;
+                    foreach (String data in rowData)
+                    {
+                        Services service = new Services();
+                        Char delimiter = '|';
+                        string[] substrings = data.Split(delimiter);
+                        service.ID = substrings[0];
+                        service.ParentPax = substrings[1];
+                        service.Itinerary = substrings[2];
+                        service.ItemNumber = substrings[3];
+                        service.Airport = substrings[4];
+
+                        services.Add(service);
+                    }
+                }
+                if (services.Count > 0)
+                {
+                    string clase = GetClase();
+                    foreach (Services item in services)
+                    {
+                        string[] vuelos = GetCountryLookItinerary(int.Parse(item.Itinerary));
+                        GetItineraryHours(int.Parse(item.Itinerary));
+                        string MH = GetMainHour(ATA, ATD);
+                        item.Cost = GetCostoPaquete(item, getItemNumber(Convert.ToInt32(item.ParentPax)), vuelos, MH, clase).ToString();
+
+                        switch (OUM)
+                        {
+                            case "TW":
+                                double b;
+                                if (double.TryParse(item.Cost, out b))
+                                {
+                                    item.Cost = GetMTOWPrice(item.Cost);
+                                }
+                                break;
+                            case "HHR":
+                                double c;
+                                if (double.TryParse(item.Cost, out c))
+                                {
+                                    double hhr = GetMinutesLeg(int.Parse(item.Itinerary), clase) * 2;
+                                    item.Cost = (Convert.ToDouble(item.Cost) * hhr).ToString();
+                                }
+                                break;
+                            case "HR":
+                                double d;
+                                if (double.TryParse(item.Cost, out d))
+                                {
+                                    double hr = GetMinutesLeg(int.Parse(item.Itinerary), clase);
+                                    item.Cost = (Convert.ToDouble(item.Cost) * hr).ToString();
+                                }
+                                break;
+                        }
+                        if (double.Parse(item.Cost) > 0)
+                        {
+                            InsertPayable(item);
+                        }
+
+
+                        /*
+                        double price = 0;
+                        double priceP = 0;
+                        double PriceCh = 0;
+                        if (!String.IsNullOrEmpty(item.ParentPax))
+                        {
+                            priceP = getPaxPrice(item.ParentPax);
+                            PriceCh = getPaxPrice(item.ID);
+                            price = PriceCh + priceP;
+                            UpdatePaxPrice(item.ID, PriceCh);
+                            UpdatePaxPrice(item.ParentPax, price);
+                        }
+                        else
+                        {
+                            price = getPaxPrice(item.ID);
+                            UpdatePaxPrice(item.ID, price);
+                        }
+                        */
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message + " Det: " + ex.StackTrace);
+            }
+
+        }
+        public string GetMTOWPrice(string cost)
+        {
+            try
+            {
+                double mtow = Convert.ToDouble(GetMTOW(ICAOId));
+                double costMTOW = Convert.ToDouble(cost);
+                double price = (mtow * costMTOW);
+                return Math.Round((price), 4).ToString();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("GetMTOWPrice: " + ex.Message + "Det:" + ex.StackTrace);
+                return "";
+            }
+        }
+        private string GetMTOW(string idICAO)
+        {
+            try
+            {
+                string weight = "";
+                ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
+                APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
+                clientInfoHeader.AppID = "Query Example";
+                String queryString = "SELECT Weight FROM CO.AircraftType WHERE ICAODesignator= '" + idICAO + "'";
+                clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
+                foreach (CSVTable table in queryCSV.CSVTables)
+                {
+                    String[] rowData = table.Rows;
+                    foreach (String data in rowData)
+                    {
+                        weight = data;
+                    }
+                }
+                return String.IsNullOrEmpty(weight) ? "" : weight;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("GetMTOW" + ex.Message + "Det:" + ex.StackTrace);
+                return "";
+            }
+        }
+        public double GetMinutesLeg(int Itinerary, string clase)
+        {
+            try
+            {
+                double minutes = 0;
+                ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
+                APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
+                clientInfoHeader.AppID = "Query Example";
+                String queryString = "SELECT (Date_Diff(ATA_ZUTC,ATD_ZUTC)/60) FROM CO.Itinerary WHERE ID =" + Itinerary.ToString() + "";
+                GlobalContext.LogMessage(queryString);
+                clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
+                foreach (CSVTable table in queryCSV.CSVTables)
+                {
+                    String[] rowData = table.Rows;
+                    foreach (String data in rowData)
+                    {
+                        minutes = Convert.ToDouble(data);
+                    }
+                }
+                if (clase == "ASI_SECURITY")
+                {
+                    minutes = minutes - 120;
+                }
+                TimeSpan t = TimeSpan.FromMinutes(minutes);
+                return Math.Ceiling(t.TotalHours);
+            }
+            catch (Exception ex)
+            {
+                GlobalContext.LogMessage("GetMinutesLeg: " + ex.Message + "Det: " + ex.StackTrace);
+                return 0;
+            }
+        }
+        public void UpdatePaxPrice(string id, double price)
+        {
+            try
+            {
+                var client = new RestClient("https://iccsmx.custhelp.com/");
+                var request = new RestRequest("/services/rest/connect/v1.4/CO.Services/" + id + "", Method.POST)
+                {
+                    RequestFormat = DataFormat.Json
+                };
+                var body = "{";
+                // Información de precios costos
+                body +=
+                    "\"Costo\":\"" + price + "\"";
+
+                body += "}";
+                GlobalContext.LogMessage(body);
+                request.AddParameter("application/json", body, ParameterType.RequestBody);
+                // easily add HTTP Headers
+                request.AddHeader("Authorization", "Basic ZW9saXZhczpTaW5lcmd5KjIwMTg=");
+                request.AddHeader("X-HTTP-Method-Override", "PATCH");
+                request.AddHeader("OSvC-CREST-Application-Context", "Update Service {id}");
+                // execute the request
+                IRestResponse response = client.Execute(request);
+                var content = response.Content; // raw content as string
+                if (content == "")
+                {
+
+                }
+                else
+                {
+                    MessageBox.Show(response.Content);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message + " Det: " + ex.StackTrace);
+            }
+
+        }
+        private double GetCostoPaquete(Services service, string parentNumber, string[] vuelos, string main, string clase)
+        {
+            try
+            {
+                int fbo = 0;
+                if (SRType == "FBO")
+                {
+                    fbo = 1;
+                }
+                else if (SRType == "FCC")
+                {
+                    fbo = GetFBOValue(service.Itinerary);
+                }
+                double amount = 0;
+
+                var client = new RestClient("https://iccs.bigmachines.com/");
+                string User = Encoding.UTF8.GetString(Convert.FromBase64String("aW1wbGVtZW50YWRvcg=="));
+                string Pass = Encoding.UTF8.GetString(Convert.FromBase64String("U2luZXJneSoyMDE4"));
+                client.Authenticator = new HttpBasicAuthenticator("servicios", "Sinergy*2018");
+                string definicion = "?totalResults=true&q={str_item_number:'" + service.ItemNumber + "',str_icao_iata_code:'IO_AEREO_" + service.Airport + "',str_ft_arrival:'" + vuelos[0] + "',str_ft_depart:'" + vuelos[1] + "',str_schedule_type:'" + main + "',bol_int_fbo:" + fbo + ",$or:[{str_package:'" + parentNumber + "'},{str_package:'TODOS'}],$or:[{str_client_category:{$like:'" + clase + "'}},{str_client_category:{$exists:false}}]}";
+                GlobalContext.LogMessage(definicion);
+                var request = new RestRequest("rest/v6/customCostosPaquetes/" + definicion, Method.GET);
+                IRestResponse response = client.Execute(request);
+                ClaseParaPaquetes.RootObject rootObjectCat = JsonConvert.DeserializeObject<ClaseParaPaquetes.RootObject>(response.Content);
+                if (rootObjectCat.items.Count > 0)
+                {
+                    amount = rootObjectCat.items[0].flo_cost;
+                    Currency = rootObjectCat.items[0].str_currency_code;
+                    Supplier = rootObjectCat.items[0].str_vendor_name;
+                    OUM = rootObjectCat.items[0].str_uom_code;
+                }
+                else
+                {
+                    amount = 0;
+                }
+
+                return amount;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.InnerException.ToString());
+                return 0;
+            }
+        }
+        public double getPaxPrice(string PaxId)
+        {
+            double price = 0;
+            ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
+            APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
+            clientInfoHeader.AppID = "Query Example";
+            String queryString = "SELECT SUM(TicketAmount) FROM CO.Payables WHERE Services.Incident =" + IncidentID + "  AND Services.Services = " + PaxId + " GROUP BY Services.Services   ";
+            clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
+            foreach (CSVTable table in queryCSV.CSVTables)
+            {
+                String[] rowData = table.Rows;
+                foreach (String data in rowData)
+                {
+                    price = String.IsNullOrEmpty(data) ? 0 : Convert.ToDouble(data);
+                }
+            }
+            return price;
+        }
+        public string GetClase()
+        {
+            try
+            {
+                string clase = "";
+                ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
+                APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
+                clientInfoHeader.AppID = "Query Example";
+                String queryString = "SELECT CustomFields.C.clase FROM Incident WHERE ID  = " + IncidentID;
+                clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
+                foreach (CSVTable table in queryCSV.CSVTables)
+                {
+                    String[] rowData = table.Rows;
+                    foreach (String data in rowData)
+                    {
+                        clase = String.IsNullOrEmpty(data) ? "TODOS" : data;
+                        clase = clase == "G&C" ? "G%C" : clase;
+                    }
+                }
+
+                return clase;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.StackTrace);
+                return "";
+            }
+        }
+        public string getItemNumber(int Service)
+        {
+            try
+            {
+                string iNumber = "";
+                ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
+                APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
+                clientInfoHeader.AppID = "Query Example";
+                String queryString = "SELECT ItemNumber FROM CO.Services WHERE ID  = " + Service;
+                clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
+                foreach (CSVTable table in queryCSV.CSVTables)
+                {
+                    String[] rowData = table.Rows;
+                    foreach (String data in rowData)
+                    {
+                        iNumber = data;
+                    }
+                }
+                return iNumber;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.StackTrace);
+                return "";
+            }
+        }
+        public int GetFBOValue(string Itinerary)
+        {
+            try
+            {
+                int fbo = 0;
+                ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
+                APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
+                clientInfoHeader.AppID = "Query Example";
+                String queryString = "SELECT SalesMethod.name FROM CO.Itinerary WHERE ID  = " + Itinerary;
+                clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
+                foreach (CSVTable table in queryCSV.CSVTables)
+                {
+                    String[] rowData = table.Rows;
+                    foreach (String data in rowData)
+                    {
+                        fbo = data == "FBO" ? 1 : 0;
+                    }
+                }
+
+                return fbo;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.StackTrace);
+                return 0;
+            }
+        }
+        public string GetSRType()
+        {
+            try
+            {
+                string SRTYPE = "";
+                if (IncidentID != 0)
+                {
+                    ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
+                    APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
+                    clientInfoHeader.AppID = "Query Example";
+                    String queryString = "SELECT I.Customfields.c.sr_type.LookupName FROM Incident I WHERE id=" + IncidentID + "";
+                    clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
+                    foreach (CSVTable table in queryCSV.CSVTables)
+                    {
+                        String[] rowData = table.Rows;
+                        foreach (String data in rowData)
+                        {
+                            SRTYPE = data;
+                        }
+                    }
+                }
+                switch (SRTYPE)
+                {
+                    case "Catering":
+                        SRTYPE = "CATERING";
+                        break;
+                    case "FCC":
+                        SRTYPE = "FCC";
+                        break;
+                    case "FBO":
+                        SRTYPE = "FBO";
+                        break;
+                    case "Fuel":
+                        SRTYPE = "FUEL";
+                        break;
+                    case "Hangar Space":
+                        SRTYPE = "GYCUSTODIA";
+                        break;
+                    case "SENEAM Fee":
+                        SRTYPE = "SENEAM";
+                        break;
+                    case "Permits":
+                        SRTYPE = "PERMISOS";
+                        break;
+                }
+                return SRTYPE;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("GetType: " + ex.Message + "Detail: " + ex.StackTrace);
+                return "";
+            }
+        }
     }
 
-    [AddIn("Create Child Services", Version = "1.0.0.0")]
+    [AddIn("Package Breakdown", Version = "1.0.0.0")]
     public class WorkspaceRibbonButtonFactory : IWorkspaceRibbonButtonFactory
     {
         private IGlobalContext globalContext { get; set; }
@@ -731,38 +1371,27 @@ namespace CreateChilServices
         {
             return new WorkspaceRibbonAddIn(inDesignMode, RecordContext, globalContext);
         }
-
-
         public System.Drawing.Image Image32
         {
             get { return Properties.Resources.service32; }
         }
-
-
         public System.Drawing.Image Image16
         {
             get { return Properties.Resources.service16; }
         }
-
         public string Text
         {
-            get { return "Create Services From Packages"; }
+            get { return "Package Breakdown"; }
         }
-
-
         public string Tooltip
         {
             get { return "Create Services From Packages"; }
         }
-
-
         public bool Initialize(IGlobalContext GlobalContext)
         {
             this.globalContext = GlobalContext;
             return true;
         }
-
-
     }
 
 }
