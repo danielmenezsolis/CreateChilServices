@@ -734,6 +734,7 @@ namespace CreateChilServices
                 }
                 else
                 {
+
                     MessageBox.Show("Componenete No creado:" + content);
                 }
 
@@ -831,7 +832,7 @@ namespace CreateChilServices
                 ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
                 APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
                 clientInfoHeader.AppID = "Query Example";
-                String queryString = "SELECT ArrivalAirport.Country.LookupName,ToAirport.LookupName FROM CO.Itinerary WHERE ID =" + itinerary + "";
+                String queryString = "SELECT FromAirport.Country.LookupName,ToAirport.Country.LookupName FROM CO.Itinerary WHERE ID =" + itinerary + "";
                 clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
                 foreach (CSVTable table in queryCSV.CSVTables)
                 {
@@ -857,25 +858,27 @@ namespace CreateChilServices
         {
             try
             {
-                DateTime ArriveDate = DateTime.Parse(ata);
-                DateTime DeliverDate = DateTime.Parse(atd);
+                DateTime ArriveDate = DateTime.Parse(ata).ToLocalTime();
+                DateTime DeliverDate = DateTime.Parse(atd).ToLocalTime();
                 string hour = "EXTRAORDINARIO";
                 if (WHoursList.Count > 0)
                 {
                     foreach (WHours w in WHoursList)
                     {
-                        double totalminutesOpen = (ArriveDate - w.Opens).TotalMinutes;
-                        double totalminutesClose = (w.Closes - DeliverDate).TotalMinutes;
-                        if (ArriveDate.CompareTo(w.Opens) >= 0 && ArriveDate.CompareTo(w.Closes) <= 0 && w.Type == "NORMAL" &&
-                                                    DeliverDate.CompareTo(w.Opens) >= 0 && DeliverDate.CompareTo(w.Closes) <= 0)
-                        {
-                            hour = "NORMAL";
-                        }
-                        else if (ArriveDate.CompareTo(w.Opens) >= 0 && ArriveDate.CompareTo(w.Closes) <= 0 && w.Type == "CRITICO" &&
+                        if (ArriveDate.CompareTo(w.Opens) >= 0 && ArriveDate.CompareTo(w.Closes) <= 0 && w.Type == "CRITICO" &&
                             DeliverDate.CompareTo(w.Opens) >= 0 && DeliverDate.CompareTo(w.Closes) <= 0)
                         {
+
                             hour = "CRITICO";
                         }
+
+                        else if (ArriveDate.CompareTo(w.Opens) >= 0 && ArriveDate.CompareTo(w.Closes) <= 0 && w.Type == "NORMAL" &&
+                                                 DeliverDate.CompareTo(w.Opens) >= 0 && DeliverDate.CompareTo(w.Closes) <= 0)
+                        {
+
+                            hour = "NORMAL";
+                        }
+
                     }
                 }
                 return hour;
@@ -890,10 +893,11 @@ namespace CreateChilServices
         {
             try
             {
+
                 ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
                 APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
                 clientInfoHeader.AppID = "Query Example";
-                String queryString = "SELECT OpensZULUTime,ClosesZULUTime,Type FROM CO.Airport_WorkingHours WHERE Airports =" + Arrival + "";
+                String queryString = "SELECT OpensZULUTime,ClosesZULUTime,Type FROM CO.Airport_WorkingHours WHERE Airports =" + Arrival + " ORDER BY Type DESC";
                 clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1000, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
                 WHoursList = new List<WHours>();
                 foreach (CSVTable table in queryCSV.CSVTables)
@@ -904,8 +908,9 @@ namespace CreateChilServices
                         WHours hours = new WHours();
                         Char delimiter = '|';
                         String[] substrings = data.Split(delimiter);
-                        hours.Opens = DateTime.Parse(Open + " " + substrings[0].Trim());
-                        hours.Closes = DateTime.Parse(Close + " " + substrings[1].Trim());
+                        hours.Opens = DateTime.Parse(Open + " " + substrings[0]).ToLocalTime();
+                        hours.Closes = DateTime.Parse(Close + " " + substrings[1]).ToLocalTime();
+
                         switch (substrings[2].Trim())
                         {
                             case "1":
@@ -946,8 +951,8 @@ namespace CreateChilServices
                     {
                         Char delimiter = '|';
                         String[] substrings = data.Split(delimiter);
-                        ATA = DateTimeOffset.Parse(substrings[0]).ToString();
-                        ATD = DateTimeOffset.Parse(substrings[1]).ToString();
+                        ATA = DateTimeOffset.Parse(substrings[0]).ToLocalTime().ToString();
+                        ATD = DateTimeOffset.Parse(substrings[1]).ToLocalTime().ToString();
                         getArrivalHours(String.IsNullOrEmpty(substrings[2]) ? 0 : Convert.ToInt32(substrings[2]), substrings[0].Substring(0, 10), substrings[1].Substring(0, 10));
                     }
                 }
@@ -1016,6 +1021,10 @@ namespace CreateChilServices
                                 if (double.TryParse(item.Cost, out d))
                                 {
                                     double hr = GetMinutesLeg(int.Parse(item.Itinerary), clase);
+                                    if (item.ItemNumber == "OFPLIAS0130")
+                                    {
+                                        hr = 10;
+                                    }
                                     item.Cost = (Convert.ToDouble(item.Cost) * hr).ToString();
                                 }
                                 break;
@@ -1103,7 +1112,6 @@ namespace CreateChilServices
                 APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
                 clientInfoHeader.AppID = "Query Example";
                 String queryString = "SELECT (Date_Diff(ATA_ZUTC,ATD_ZUTC)/60) FROM CO.Itinerary WHERE ID =" + Itinerary.ToString() + "";
-                GlobalContext.LogMessage(queryString);
                 clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
                 foreach (CSVTable table in queryCSV.CSVTables)
                 {
@@ -1193,7 +1201,7 @@ namespace CreateChilServices
                 {
                     amount = rootObjectCat.items[0].flo_cost;
                     Currency = rootObjectCat.items[0].str_currency_code;
-                    Supplier = rootObjectCat.items[0].str_vendor_name;
+                    Supplier = string.IsNullOrEmpty(rootObjectCat.items[0].str_vendor_name) ? "NO SUPPLIER" : rootObjectCat.items[0].str_vendor_name;
                     OUM = rootObjectCat.items[0].str_uom_code;
                 }
                 else
