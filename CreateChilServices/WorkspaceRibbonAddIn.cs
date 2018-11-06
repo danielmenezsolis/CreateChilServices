@@ -734,7 +734,7 @@ namespace CreateChilServices
                 }
                 else
                 {
-                    MessageBox.Show(content);
+                    MessageBox.Show("Componenete No creado:" + content);
                 }
 
             }
@@ -763,7 +763,7 @@ namespace CreateChilServices
                 body += "},";
                 body += "\"Services\":";
                 body += "{";
-                body += "\"id\":" + service.ParentPax + "";
+                body += "\"id\":" + service.ID + "";
                 body += "}";
                 body += "}";
 
@@ -780,7 +780,7 @@ namespace CreateChilServices
                 }
                 else
                 {
-                    MessageBox.Show(content);
+                    MessageBox.Show("Payable No Creado" + content);
                 }
 
             }
