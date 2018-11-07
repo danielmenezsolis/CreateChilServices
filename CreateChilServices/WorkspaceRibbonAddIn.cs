@@ -1,6 +1,7 @@
 ﻿using System;
 using System.AddIn;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Net;
 using System.ServiceModel;
@@ -10,6 +11,7 @@ using System.Windows.Forms;
 using System.Xml;
 using System.Xml.Linq;
 using CreateChilServices.SOAPICCS;
+using Itenso.TimePeriod;
 using Newtonsoft.Json;
 using RestSharp;
 using RestSharp.Authenticators;
@@ -28,8 +30,8 @@ namespace CreateChilServices
         public int Packages { get; set; }
         public int BabyPackages { get; set; }
         public string InformativoPadre { get; set; }
-        public string ATD { get; set; }
-        public string ATA { get; set; }
+        public DateTime ATD { get; set; }
+        public DateTime ATA { get; set; }
         public List<WHours> WHoursList { get; set; }
         public string SRType { get; set; }
         public string Currency { get; set; }
@@ -128,7 +130,6 @@ namespace CreateChilServices
         {
             try
             {
-
                 ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
                 APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
                 clientInfoHeader.AppID = "Query Example";
@@ -854,26 +855,25 @@ namespace CreateChilServices
                 return null;
             }
         }
-        private string GetMainHour(string ata, string atd)
+        private string GetMainHour(DateTime ATA, DateTime ATD)
         {
             try
             {
-                DateTime ArriveDate = DateTime.Parse(ata).ToLocalTime();
-                DateTime DeliverDate = DateTime.Parse(atd).ToLocalTime();
+
                 string hour = "EXTRAORDINARIO";
                 if (WHoursList.Count > 0)
                 {
                     foreach (WHours w in WHoursList)
                     {
-                        if (ArriveDate.CompareTo(w.Opens) >= 0 && ArriveDate.CompareTo(w.Closes) <= 0 && w.Type == "CRITICO" &&
-                            DeliverDate.CompareTo(w.Opens) >= 0 && DeliverDate.CompareTo(w.Closes) <= 0)
+                        if (ATA.CompareTo(w.Opens) >= 0 && ATA.CompareTo(w.Closes) <= 0 && w.Type == "CRITICO" &&
+                            ATD.CompareTo(w.Opens) >= 0 && ATD.CompareTo(w.Closes) <= 0)
                         {
 
                             hour = "CRITICO";
                         }
 
-                        else if (ArriveDate.CompareTo(w.Opens) >= 0 && ArriveDate.CompareTo(w.Closes) <= 0 && w.Type == "NORMAL" &&
-                                                 DeliverDate.CompareTo(w.Opens) >= 0 && DeliverDate.CompareTo(w.Closes) <= 0)
+                        else if (ATA.CompareTo(w.Opens) >= 0 && ATA.CompareTo(w.Closes) <= 0 && w.Type == "NORMAL" &&
+                                                 ATD.CompareTo(w.Opens) >= 0 && ATD.CompareTo(w.Closes) <= 0)
                         {
 
                             hour = "NORMAL";
@@ -889,7 +889,7 @@ namespace CreateChilServices
                 return "";
             }
         }
-        private void getArrivalHours(int Arrival, string Open, string Close)
+        private void getArrivalHours(int Arrival, string ATADay, string ATDDay)
         {
             try
             {
@@ -908,8 +908,8 @@ namespace CreateChilServices
                         WHours hours = new WHours();
                         Char delimiter = '|';
                         String[] substrings = data.Split(delimiter);
-                        hours.Opens = DateTime.Parse(Open + " " + substrings[0]).ToLocalTime();
-                        hours.Closes = DateTime.Parse(Close + " " + substrings[1]).ToLocalTime();
+                        hours.Opens = DateTime.Parse(ATADay + " " + substrings[0]).ToLocalTime();
+                        hours.Closes = DateTime.Parse(ATDDay + " " + substrings[1]).ToLocalTime();
 
                         switch (substrings[2].Trim())
                         {
@@ -951,9 +951,9 @@ namespace CreateChilServices
                     {
                         Char delimiter = '|';
                         String[] substrings = data.Split(delimiter);
-                        ATA = DateTimeOffset.Parse(substrings[0]).ToLocalTime().ToString();
-                        ATD = DateTimeOffset.Parse(substrings[1]).ToLocalTime().ToString();
-                        getArrivalHours(String.IsNullOrEmpty(substrings[2]) ? 0 : Convert.ToInt32(substrings[2]), substrings[0].Substring(0, 10), substrings[1].Substring(0, 10));
+                        ATA = DateTime.Parse(substrings[0]).ToLocalTime();
+                        ATD = DateTime.Parse(substrings[1]).ToLocalTime();
+                        getArrivalHours(int.Parse(substrings[2]), ATA.ToString("yyyy-MM-dd"), ATD.ToString("yyyy-MM-dd"));
                     }
                 }
             }
