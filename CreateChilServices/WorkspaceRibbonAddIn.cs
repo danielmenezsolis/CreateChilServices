@@ -29,6 +29,7 @@ namespace CreateChilServices
         public int IncidentID { get; set; }
         public int Packages { get; set; }
         public int BabyPackages { get; set; }
+        public int BabyPayables { get; set; }
         public string InformativoPadre { get; set; }
         public DateTime ATD { get; set; }
         public DateTime ATA { get; set; }
@@ -58,6 +59,7 @@ namespace CreateChilServices
                     case DialogResult.Yes:
                         BabyPackages = 0;
                         Packages = 0;
+                        BabyPayables = 0;
                         if (Init())
                         {
                             Incident = (IIncident)RecordContext.GetWorkspaceRecord(WorkspaceRecordType.Incident);
@@ -66,8 +68,8 @@ namespace CreateChilServices
                             SRType = GetSRType();
                             GetDeleteComponents();
                             CreateChildComponents();
-                            MessageBox.Show("Packages Found: " + Packages + " ChildServices Created: " + BabyPackages);
                             UpdatePackageCost();
+                            MessageBox.Show("Packages Found: " + Packages + " Child Services Created: " + BabyPackages + " Child Payables Created: " + BabyPayables);
                         }
                         break;
                 }
@@ -751,6 +753,7 @@ namespace CreateChilServices
         {
             try
             {
+                BabyPayables++;
                 var client = new RestClient("https://iccsmx.custhelp.com/");
                 var request = new RestRequest("/services/rest/connect/v1.4/CO.Payables/", Method.POST)
                 {
@@ -908,8 +911,8 @@ namespace CreateChilServices
                         WHours hours = new WHours();
                         Char delimiter = '|';
                         String[] substrings = data.Split(delimiter);
-                        hours.Opens = DateTime.Parse(ATADay + " " + substrings[0]).ToLocalTime();
-                        hours.Closes = DateTime.Parse(ATDDay + " " + substrings[1]).ToLocalTime();
+                        hours.Opens = DateTime.Parse(ATADay + " " + substrings[0]);
+                        hours.Closes = DateTime.Parse(ATDDay + " " + substrings[1]);
 
                         switch (substrings[2].Trim())
                         {
