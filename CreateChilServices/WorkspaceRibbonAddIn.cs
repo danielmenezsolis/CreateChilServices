@@ -52,7 +52,7 @@ namespace CreateChilServices
         {
             try
             {
-                DialogResult dr = MessageBox.Show("¿Would you like to create child services from Packages?",
+                DialogResult dr = MessageBox.Show("Would you like to create child services from Packages?",
                           "Confirm", MessageBoxButtons.YesNo);
                 switch (dr)
                 {
@@ -62,6 +62,7 @@ namespace CreateChilServices
                         BabyPayables = 0;
                         if (Init())
                         {
+                            Cursor.Current = Cursors.WaitCursor;
                             Incident = (IIncident)RecordContext.GetWorkspaceRecord(WorkspaceRecordType.Incident);
                             IncidentID = Incident.ID;
                             ICAOId = getICAODesi(IncidentID);
@@ -69,6 +70,7 @@ namespace CreateChilServices
                             GetDeleteComponents();
                             CreateChildComponents();
                             UpdatePackageCost();
+                            Cursor.Current = Cursors.Default;
                             MessageBox.Show("Packages Found: " + Packages + " Child Services Created: " + BabyPackages + " Child Payables Created: " + BabyPayables);
                         }
                         break;
@@ -945,7 +947,7 @@ namespace CreateChilServices
                 ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
                 APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
                 clientInfoHeader.AppID = "Query Example";
-                String queryString = "SELECT ATA_ZUTC,ATD_ZUTC,ArrivalAirport FROM CO.Itinerary WHERE Incident1 =" + IncidentID + " AND ID =" + Itinerary + "";
+                String queryString = "SELECT ATA,ATATime, ATD, ATDTime,ArrivalAirport FROM CO.Itinerary WHERE Incident1 =" + IncidentID + " AND ID =" + Itinerary + "";
                 clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
                 foreach (CSVTable table in queryCSV.CSVTables)
                 {
@@ -954,9 +956,9 @@ namespace CreateChilServices
                     {
                         Char delimiter = '|';
                         String[] substrings = data.Split(delimiter);
-                        ATA = DateTime.Parse(substrings[0]).ToLocalTime();
-                        ATD = DateTime.Parse(substrings[1]).ToLocalTime();
-                        getArrivalHours(int.Parse(substrings[2]), ATA.ToString("yyyy-MM-dd"), ATD.ToString("yyyy-MM-dd"));
+                        ATA = DateTime.Parse(substrings[0] + " " + substrings[1]);
+                        ATD = DateTime.Parse(substrings[2] + " " + substrings[3]);
+                        getArrivalHours(int.Parse(substrings[4]), ATA.ToString("yyyy-MM-dd"), ATD.ToString("yyyy-MM-dd"));
                     }
                 }
             }
