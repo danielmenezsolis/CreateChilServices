@@ -14,6 +14,9 @@ namespace CreateChilServices
         public string Airport { get; set; }
         public string Supplier { get; set; }
         public string Cost { get; set; }
+        public string UnitCost { get; set; }
+        public string Quantity { get; set; }
+        public string UOM { get; set; }
         public string Price { get; set; }
         public string InvoiceInternal { get; set; }
         public string Itinerary { get; set; }

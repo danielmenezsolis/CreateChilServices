@@ -763,6 +763,9 @@ namespace CreateChilServices
                 };
                 string body = "{";
                 body += "\"Supplier\":\"" + Supplier + "\",";
+                body += "\"UOM\":\"" + OUM + "\",";
+                body += "\"UnitCost\":\"" + service.UnitCost + "\",";
+                body += "\"Quantity\":\"" + service.Quantity + "\",";
                 body += "\"TicketAmount\":\"" + service.Cost + "\",";
                 body += "\"Currency\":";
                 body += "{";
@@ -971,6 +974,9 @@ namespace CreateChilServices
         {
             try
             {
+                double antelacion = 0;
+                double extension = 0;
+                double minover = 0;
                 List<Services> services = new List<Services>();
                 ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
                 APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
@@ -1003,6 +1009,53 @@ namespace CreateChilServices
                         GetItineraryHours(int.Parse(item.Itinerary));
                         string MH = GetMainHour(ATA, ATD);
                         item.Cost = GetCostoPaquete(item, getItemNumber(Convert.ToInt32(item.ParentPax)), vuelos, MH, clase).ToString();
+                        item.UnitCost = item.Cost;
+                        item.Quantity = "1";
+                        minover = 0;
+
+                        if (!AirportOpen24(Convert.ToInt32(item.Itinerary)) && (OUM == "MIN" || OUM == "HHR" || OUM == "HR"))
+                        {
+                            int arrival = getArrivalAirport(Convert.ToInt32(item.Itinerary));
+                            if (arrival != 0)
+                            {
+                                DateTime openDate;
+                                DateTime closeDate;
+
+                                string open = getOpenArrivalAirport(arrival);
+                                string close = getCloseArrivalAirport(arrival);
+                                DateTime ATA = getATAItinerary(Convert.ToInt32(item.Itinerary));
+                                DateTime ATD = getATDItinerary(Convert.ToInt32(item.Itinerary));
+                                openDate = DateTime.Parse(ATA.Date.ToShortDateString() + " " + open);
+                                closeDate = DateTime.Parse(ATA.Date.ToShortDateString() + " " + close);
+                                if (IsBetween(ATA, openDate, closeDate))
+                                {
+                                    antelacion = (ATA - openDate).TotalMinutes;
+                                }
+                                // MessageBox.Show("llegada: " + antelacion.ToString());
+                                extension = ((ATD - openDate).TotalMinutes) + 15;
+                                if (ATA.Date != ATD.Date)
+                                {
+                                    openDate = DateTime.Parse(ATD.Date.ToShortDateString() + " " + open);
+                                    closeDate = DateTime.Parse(ATD.Date.ToShortDateString() + " " + close);
+                                    if (IsBetween(ATD, openDate, closeDate)) {
+                                        extension = ((ATD - openDate).TotalMinutes) + 15;
+                                    } else
+                                    {
+                                        extension = 0;
+                                    }
+                                }
+                                //MessageBox.Show("salida: " + extension.ToString());
+                                if (extension > 0)
+                                {
+                                    minover = extension < 0 ? 0 : extension;
+                                }
+                                if (ATA.Date != ATD.Date)
+                                {
+                                    minover = (antelacion < 0 ? 0 : antelacion) + (extension < 0 ? 0 : extension);
+                                }
+                            }
+                            //MessageBox.Show("Minutos: " + minover.ToString());
+                        }
 
                         switch (OUM)
                         {
@@ -1010,6 +1063,7 @@ namespace CreateChilServices
                                 double b;
                                 if (double.TryParse(item.Cost, out b))
                                 {
+                                    item.Quantity = GetMTOW(ICAOId);
                                     item.Cost = GetMTOWPrice(item.Cost);
                                 }
                                 break;
@@ -1017,29 +1071,59 @@ namespace CreateChilServices
                                 double c;
                                 if (double.TryParse(item.Cost, out c))
                                 {
-                                    double hhr = GetMinutesLeg(int.Parse(item.Itinerary), clase) * 2;
-                                    item.Cost = (Convert.ToDouble(item.Cost) * hhr).ToString();
+                                    if (minover > 0)
+                                    {
+                                        TimeSpan t = TimeSpan.FromMinutes(minover);
+                                        item.Quantity = (Math.Ceiling(t.TotalMinutes/30)).ToString();
+                                        item.Cost = (Convert.ToDouble(item.Cost) * Convert.ToDouble(item.Quantity)).ToString();
+                                    } else
+                                    {
+                                        item.Cost = "0";
+                                    }
                                 }
                                 break;
                             case "HR":
                                 double d;
                                 if (double.TryParse(item.Cost, out d))
                                 {
-                                    double hr = GetMinutesLeg(int.Parse(item.Itinerary), clase);
-                                    if (item.ItemNumber == "OFPLIAS0130")
+                                    if (minover > 0)
                                     {
-                                        hr = 10;
+                                        TimeSpan t = TimeSpan.FromMinutes(minover);
+                                        item.Quantity = Math.Ceiling(t.TotalHours).ToString();
+                                        item.Cost = (Convert.ToDouble(item.Cost) * Convert.ToDouble(item.Quantity)).ToString();
                                     }
-                                    item.Cost = (Convert.ToDouble(item.Cost) * hr).ToString();
+                                    else
+                                    {
+                                        item.Cost = "0";
+                                    }
+                                }
+                                break;
+                            case "MIN":
+                                double e;
+                                if (double.TryParse(item.Cost, out e))
+                                {
+                                    if (minover > 0)
+                                    {
+                                        TimeSpan t = TimeSpan.FromMinutes(minover);
+                                        item.Quantity = Math.Ceiling(t.TotalMinutes).ToString();
+                                        item.Cost = (Convert.ToDouble(item.Cost) * Convert.ToDouble(item.Quantity)).ToString();
+                                    }
+                                    else
+                                    {
+                                        item.Cost = "0";
+                                    }
                                 }
                                 break;
                         }
                         if (double.Parse(item.Cost) > 0)
                         {
+                            /*
+                              if (item.ItemNumber == "OSSEIAS0185" || item.ItemNumber == "DGAOVER0115")
+                            {
+                                MessageBox.Show("OVERTIME found: " + item.ItemNumber);
+                            } */
                             InsertPayable(item);
                         }
-
-
                         /*
                         double price = 0;
                         double priceP = 0;
@@ -1060,12 +1144,142 @@ namespace CreateChilServices
                         */
                     }
                 }
+                if (minover != 0)
+                {
+                    if (antelacion > 0 && extension == 0)
+                    {
+                        MessageBox.Show("OVERTIME ARRIVAL: " + antelacion + " minutes.");
+                    }
+                    else if (extension > 0 && antelacion == 0)
+                    {
+                        MessageBox.Show("OVERTIME DEPARTURE: " + extension + " minutes.");
+                    } else
+                    {
+                        MessageBox.Show("OVERTIME ARRIVAL & DEPARTURE: " + minover + " minutes.");
+                    }
+                }
             }
             catch (Exception ex)
             {
                 MessageBox.Show(ex.Message + " Det: " + ex.StackTrace);
             }
 
+        }
+        public static bool IsBetween(DateTime input, DateTime date1, DateTime date2)
+        {
+            return (input > date1 && input < date2);
+        }
+        public int getArrivalAirport(int Itinerarie)
+        {
+            int arriv = 0;
+
+            ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
+            APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
+            clientInfoHeader.AppID = "Query Example";
+            String queryString = "SELECT ArrivalAirport FROM Co.Itinerary  WHERE ID =" + Itinerarie;
+            clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
+            foreach (CSVTable table in queryCSV.CSVTables)
+            {
+                String[] rowData = table.Rows;
+                foreach (String data in rowData)
+                {
+                    arriv = String.IsNullOrEmpty(data) ? 0 : Convert.ToInt32(data);
+                }
+            }
+            return arriv;
+        }
+        public string getOpenArrivalAirport(int Arrival)
+        {
+            string opens = "";
+            ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
+            APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
+            clientInfoHeader.AppID = "Query Example";
+            String queryString = "SELECT OpensZuluTime FROM Co.Airport_WorkingHours  WHERE Airports =" + Arrival + " AND Type = 1";
+            clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
+            foreach (CSVTable table in queryCSV.CSVTables)
+            {
+                String[] rowData = table.Rows;
+                foreach (String data in rowData)
+                {
+                    opens = data;
+                }
+            }
+            return opens;
+        }
+        public DateTime getATAItinerary(int Itinerarie)
+        {
+            try
+            {
+                string ATA = "";
+                ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
+                APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
+                clientInfoHeader.AppID = "Query Example";
+                String queryString = "SELECT ATA,ATATime FROM Co.Itinerary WHERE ID = " + Itinerarie;
+                clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
+                foreach (CSVTable table in queryCSV.CSVTables)
+                {
+                    String[] rowData = table.Rows;
+                    foreach (String data in rowData)
+                    {
+                        Char delimiter = '|';
+                        string[] substrings = data.Split(delimiter);
+                        ATA = substrings[0] + " " + substrings[1];
+                    }
+                }
+                return DateTime.Parse(ATA);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("getATAItinerary: " + ex.Message + "Detail: " + ex.StackTrace);
+                return DateTime.Now;
+            }
+        }
+        public DateTime getATDItinerary(int Itinerarie)
+        {
+            try
+            {
+                string ATD = "";
+                ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
+                APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
+                clientInfoHeader.AppID = "Query Example";
+                String queryString = "SELECT ATD,ATDTime FROM Co.Itinerary WHERE ID = " + Itinerarie;
+                clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
+                foreach (CSVTable table in queryCSV.CSVTables)
+                {
+                    String[] rowData = table.Rows;
+                    foreach (String data in rowData)
+                    {
+                        Char delimiter = '|';
+                        string[] substrings = data.Split(delimiter);
+                        ATD = substrings[0] + " " + substrings[1];
+                    }
+                }
+
+                return DateTime.Parse(ATD);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("getATAItinerary: " + ex.Message + "Detail: " + ex.StackTrace);
+                return DateTime.Now;
+            }
+        }
+        public string getCloseArrivalAirport(int Arrival)
+        {
+            string closes = "";
+            ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
+            APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
+            clientInfoHeader.AppID = "Query Example";
+            String queryString = "SELECT ClosesZuluTime  FROM Co.Airport_WorkingHours  WHERE Airports =" + Arrival + " AND Type = 1";
+            clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
+            foreach (CSVTable table in queryCSV.CSVTables)
+            {
+                String[] rowData = table.Rows;
+                foreach (String data in rowData)
+                {
+                    closes = data;
+                }
+            }
+            return closes;
         }
         public string GetMTOWPrice(string cost)
         {
@@ -1080,6 +1294,36 @@ namespace CreateChilServices
             {
                 MessageBox.Show("GetMTOWPrice: " + ex.Message + "Det:" + ex.StackTrace);
                 return "";
+            }
+        }
+        public bool AirportOpen24(int Itinerarie)
+        {
+            try
+            {
+                bool open = true;
+
+                ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
+                APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
+                clientInfoHeader.AppID = "Query Example";
+                String queryString = "SELECT ArrivalAirport.HoursOpen24 FROM Co.Itinerary  WHERE ID =" + Itinerarie;
+                clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
+                foreach (CSVTable table in queryCSV.CSVTables)
+                {
+                    String[] rowData = table.Rows;
+                    foreach (String data in rowData)
+                    {
+                        open = data == "1" ? true : false;
+                    }
+                }
+
+                return open;
+            }
+            catch (Exception ex)
+            {
+
+                MessageBox.Show("AirportOpen24: " + ex.Message + "Detail: " + ex.StackTrace);
+
+                return false;
             }
         }
         private string GetMTOW(string idICAO)
@@ -1106,37 +1350,6 @@ namespace CreateChilServices
             {
                 MessageBox.Show("GetMTOW" + ex.Message + "Det:" + ex.StackTrace);
                 return "";
-            }
-        }
-        public double GetMinutesLeg(int Itinerary, string clase)
-        {
-            try
-            {
-                double minutes = 0;
-                ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
-                APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
-                clientInfoHeader.AppID = "Query Example";
-                String queryString = "SELECT (Date_Diff(ATA_ZUTC,ATD_ZUTC)/60) FROM CO.Itinerary WHERE ID =" + Itinerary.ToString() + "";
-                clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
-                foreach (CSVTable table in queryCSV.CSVTables)
-                {
-                    String[] rowData = table.Rows;
-                    foreach (String data in rowData)
-                    {
-                        minutes = Convert.ToDouble(data);
-                    }
-                }
-                if (clase == "ASI_SECURITY")
-                {
-                    minutes = minutes - 120;
-                }
-                TimeSpan t = TimeSpan.FromMinutes(minutes);
-                return Math.Ceiling(t.TotalHours);
-            }
-            catch (Exception ex)
-            {
-                GlobalContext.LogMessage("GetMinutesLeg: " + ex.Message + "Det: " + ex.StackTrace);
-                return 0;
             }
         }
         public void UpdatePaxPrice(string id, double price)
@@ -1197,7 +1410,11 @@ namespace CreateChilServices
                 string User = Encoding.UTF8.GetString(Convert.FromBase64String("aW1wbGVtZW50YWRvcg=="));
                 string Pass = Encoding.UTF8.GetString(Convert.FromBase64String("U2luZXJneSoyMDE4"));
                 client.Authenticator = new HttpBasicAuthenticator("servicios", "Sinergy*2018");
-                string definicion = "?totalResults=true&q={str_item_number:'" + service.ItemNumber + "',str_icao_iata_code:'IO_AEREO_" + service.Airport + "',str_ft_arrival:'" + vuelos[0] + "',str_ft_depart:'" + vuelos[1] + "',str_schedule_type:'" + main + "',bol_int_fbo:" + fbo + ",$or:[{str_package:'" + parentNumber + "'},{str_package:'TODOS'}],$or:[{str_client_category:{$like:'" + clase + "'}},{str_client_category:{$exists:false}}]}";
+                string definicion = "?totalResults=true&q={str_item_number:'" + service.ItemNumber +
+                    "',$or:[{str_icao_iata_code:'IO_AEREO_" + service.Airport +
+                    "'},{str_icao_iata_code:{$exists:false}}],str_ft_arrival:'" + vuelos[0] +
+                    "',str_ft_depart:'" + vuelos[1] + "',str_schedule_type:'" + main +
+                    "',bol_int_fbo:" + fbo + "}";
                 GlobalContext.LogMessage(definicion);
                 var request = new RestRequest("rest/v6/customCostosPaquetes/" + definicion, Method.GET);
                 IRestResponse response = client.Execute(request);
