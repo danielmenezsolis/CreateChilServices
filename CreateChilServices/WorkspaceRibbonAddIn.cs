@@ -1,7 +1,6 @@
 ﻿using System;
 using System.AddIn;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Net;
 using System.ServiceModel;
@@ -11,7 +10,6 @@ using System.Windows.Forms;
 using System.Xml;
 using System.Xml.Linq;
 using CreateChilServices.SOAPICCS;
-using Itenso.TimePeriod;
 using Newtonsoft.Json;
 using RestSharp;
 using RestSharp.Authenticators;
@@ -1037,9 +1035,11 @@ namespace CreateChilServices
                                 {
                                     openDate = DateTime.Parse(ATD.Date.ToShortDateString() + " " + open);
                                     closeDate = DateTime.Parse(ATD.Date.ToShortDateString() + " " + close);
-                                    if (IsBetween(ATD, openDate, closeDate)) {
+                                    if (IsBetween(ATD, openDate, closeDate))
+                                    {
                                         extension = ((ATD - openDate).TotalMinutes) + 15;
-                                    } else
+                                    }
+                                    else
                                     {
                                         extension = 0;
                                     }
@@ -1074,9 +1074,10 @@ namespace CreateChilServices
                                     if (minover > 0)
                                     {
                                         TimeSpan t = TimeSpan.FromMinutes(minover);
-                                        item.Quantity = (Math.Ceiling(t.TotalMinutes/30)).ToString();
+                                        item.Quantity = (Math.Ceiling(t.TotalMinutes / 30)).ToString();
                                         item.Cost = (Convert.ToDouble(item.Cost) * Convert.ToDouble(item.Quantity)).ToString();
-                                    } else
+                                    }
+                                    else
                                     {
                                         item.Cost = "0";
                                     }
@@ -1153,7 +1154,8 @@ namespace CreateChilServices
                     else if (extension > 0 && antelacion == 0)
                     {
                         MessageBox.Show("OVERTIME DEPARTURE: " + extension + " minutes.");
-                    } else
+                    }
+                    else
                     {
                         MessageBox.Show("OVERTIME ARRIVAL & DEPARTURE: " + minover + " minutes.");
                     }
