@@ -863,30 +863,27 @@ namespace CreateChilServices
                 return null;
             }
         }
-        private string GetMainHour(DateTime ATA, DateTime ATD)
+        private string GetMainHour(DateTime ata, DateTime atd)
         {
             try
             {
 
+                DateTime ATA = ata;
+                DateTime ATD = atd;
                 string hour = "EXTRAORDINARIO";
                 if (WHoursList.Count > 0)
                 {
                     foreach (WHours w in WHoursList)
                     {
-                        if (ATA.CompareTo(w.Opens) >= 0 && ATA.CompareTo(w.Closes) <= 0 && w.Type == "CRITICO" &&
-                            ATD.CompareTo(w.Opens) >= 0 && ATD.CompareTo(w.Closes) <= 0)
+                        if (IsBetween(ATA, w.Opens, w.Closes) && w.Type == "CRITICO")
                         {
-
                             hour = "CRITICO";
                         }
-
-                        else if (ATA.CompareTo(w.Opens) >= 0 && ATA.CompareTo(w.Closes) <= 0 && w.Type == "NORMAL" &&
-                                                 ATD.CompareTo(w.Opens) >= 0 && ATD.CompareTo(w.Closes) <= 0)
+                        if (IsBetween(ATA, w.Opens, w.Closes) && w.Type == "NORMAL")
                         {
 
                             hour = "NORMAL";
                         }
-
                     }
                 }
                 return hour;
