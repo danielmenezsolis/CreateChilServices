@@ -90,7 +90,7 @@ namespace CreateChilServices
                             UpdatePackageCost();
                             RecordContext.ExecuteEditorCommand(EditorCommand.Save);
                             Cursor.Current = Cursors.Default;
-                            MessageBox.Show("Packages Found: " + Packages + "\n" +"Child Services Created: " + BabyPackages + "\n" + "Child Payables Created: " + BabyPayables);
+                            MessageBox.Show("Packages Found: " + Packages + "\n" + "Child Services Created: " + BabyPackages + "\n" + "Child Payables Created: " + BabyPayables);
                         }
                         break;
                 }
@@ -225,16 +225,18 @@ namespace CreateChilServices
                             InformativoPadre = substrings[4];
                             ParentItemName = substrings[5];
                             GetComponents(component);
-                            if (CustomerName.Contains("NETJET") && ParentItemName.Contains("(NJ)")) {
+                            /*
+                            if (CustomerName.Contains("NETJET") && ParentItemName.Contains("(NJ)"))
+                            {
                                 component.Informativo = "1";
-                            }
+                            }*/
                         }
                     }
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message);
+                MessageBox.Show("CreateChildComponents: " + ex.Message + "Det: " + ex.StackTrace);
             }
         }
         public void GetComponents(ComponentChild component)
@@ -360,7 +362,7 @@ namespace CreateChilServices
             }
             catch (Exception e)
             {
-                MessageBox.Show(e.Message);
+                MessageBox.Show("GetComponents" + e.Message + "Det:" + e.StackTrace);
             }
         }
         public string GetCategories(string ItemN, string Airport)
@@ -460,7 +462,7 @@ namespace CreateChilServices
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.StackTrace);
+                MessageBox.Show("GetCategories:" + ex.Message + "Det: " + ex.StackTrace);
                 return "";
             }
         }
@@ -628,7 +630,7 @@ namespace CreateChilServices
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.StackTrace);
+                MessageBox.Show("GetComponentData: " + ex.Message + "Det: " + ex.StackTrace);
                 return null;
             }
         }
