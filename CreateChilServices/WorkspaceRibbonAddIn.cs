@@ -29,14 +29,17 @@ namespace CreateChilServices
         public int BabyPackages { get; set; }
         public int BabyPayables { get; set; }
         public string InformativoPadre { get; set; }
-        public DateTime ATD { get; set; }
-        public DateTime ATA { get; set; }
         public List<WHours> WHoursList { get; set; }
         public string SRType { get; set; }
+        public DateTime ATA { get; set; }
+        public DateTime ATD { get; set; }
         public string Currency { get; set; }
         public string Supplier { get; set; }
         public string OUM { get; set; }
         public string ICAOId { get; set; }
+        // public string IdItinerary { get; set; }
+        public string CustomerName { get; set; }
+        public string ParentItemName { get; set; }
 
         public WorkspaceRibbonAddIn(bool inDesignMode, IRecordContext RecordContext, IGlobalContext GlobalContext)
         {
@@ -50,7 +53,7 @@ namespace CreateChilServices
         {
             try
             {
-                DialogResult dr = MessageBox.Show("Would you like to create child services from Packages?",
+                DialogResult dr = MessageBox.Show("Would you like to create child services from Fuel/Packages?",
                           "Confirm", MessageBoxButtons.YesNo);
                 switch (dr)
                 {
@@ -63,17 +66,34 @@ namespace CreateChilServices
                             Cursor.Current = Cursors.WaitCursor;
                             Incident = (IIncident)RecordContext.GetWorkspaceRecord(WorkspaceRecordType.Incident);
                             IncidentID = Incident.ID;
+                            IList<ICfVal> IncCustomFieldList = Incident.CustomField;
+                            if (IncCustomFieldList != null)
+                            {
+                                foreach (ICfVal inccampos in IncCustomFieldList)
+                                {
+                                    if (inccampos.CfId == 58)
+                                    {
+                                        CustomerName = inccampos.ValStr;
+                                    }
+                                }
+                            }
                             ICAOId = getICAODesi(IncidentID);
                             SRType = GetSRType();
                             GetDeleteComponents();
+                            /*
+                            if (SRType == "FUEL")
+                            {
+                                Create
+                            }
+                            */
                             CreateChildComponents();
                             UpdatePackageCost();
+                            RecordContext.ExecuteEditorCommand(EditorCommand.Save);
                             Cursor.Current = Cursors.Default;
-                            MessageBox.Show("Packages Found: " + Packages + " Child Services Created: " + BabyPackages + " Child Payables Created: " + BabyPayables);
+                            MessageBox.Show("Packages Found: " + Packages + "\n" +"Child Services Created: " + BabyPackages + "\n" + "Child Payables Created: " + BabyPayables);
                         }
                         break;
                 }
-
             }
             catch (Exception ex)
             {
@@ -107,7 +127,6 @@ namespace CreateChilServices
             {
                 MessageBox.Show("Error en INIT: " + ex.Message);
                 return false;
-
             }
         }
         public string getICAODesi(int Incident)
@@ -135,7 +154,7 @@ namespace CreateChilServices
                 ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
                 APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
                 clientInfoHeader.AppID = "Query Example";
-                String queryString = "SELECT ID FROM CO.Services WHERE Componente = '1' AND Incident = " + IncidentID;
+                String queryString = "SELECT ID FROM CO.Services WHERE ManualCreated = '1' AND Incident = " + IncidentID;
                 clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 10000, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
                 if (queryCSV.CSVTables.Length > 0)
                 {
@@ -147,9 +166,7 @@ namespace CreateChilServices
                             DeleteServices(Convert.ToInt32(data));
                         }
                     }
-
                 }
-
             }
             catch (Exception ex)
             {
@@ -160,7 +177,6 @@ namespace CreateChilServices
         {
             try
             {
-
                 var client = new RestClient("https://iccsmx.custhelp.com/");
                 var request = new RestRequest("/services/rest/connect/v1.4/CO.Services/" + id, Method.DELETE)
                 {
@@ -189,7 +205,7 @@ namespace CreateChilServices
                 ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
                 APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
                 clientInfoHeader.AppID = "Query Example";
-                String queryString = "SELECT ID,Airport,ItemNumber,Itinerary,Informativo FROM CO.Services WHERE Paquete = '1' AND COMPONENTE IS NULL AND  Incident =  " + IncidentID;
+                String queryString = "SELECT ID,Airport,ItemNumber,Itinerary,Informativo,ItemDescription FROM CO.Services WHERE Paquete = '1' AND COMPONENTE IS NULL AND  Incident =  " + IncidentID;
                 clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 10000, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
                 if (queryCSV.CSVTables.Length > 0)
                 {
@@ -207,10 +223,13 @@ namespace CreateChilServices
                             component.ItemNumber = substrings[2];
                             component.Itinerary = Convert.ToInt32(substrings[3]);
                             InformativoPadre = substrings[4];
+                            ParentItemName = substrings[5];
                             GetComponents(component);
+                            if (CustomerName.Contains("NETJET") && ParentItemName.Contains("(NJ)")) {
+                                component.Informativo = "1";
+                            }
                         }
                     }
-
                 }
             }
             catch (Exception ex)
@@ -222,7 +241,7 @@ namespace CreateChilServices
         {
             try
             {
-
+                ParentItemName = component.ItemDescription;
                 string envelope = "<soapenv:Envelope" +
                  "   xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\"" +
                  "   xmlns:typ=\"http://xmlns.oracle.com/apps/scm/productModel/items/structures/structureServiceV2/types/\"" +
@@ -312,6 +331,7 @@ namespace CreateChilServices
                                             componentchild.Airport = component.Airport;
                                             componentchild.Incident = IncidentID;
                                             componentchild.Componente = "1";
+                                            componentchild.MCreated = "1";
                                             componentchild.ItemNumber = nodeValue.InnerText;
                                             componentchild.Itinerary = component.Itinerary;
                                             componentchild.Categories = GetCategories(componentchild.ItemNumber, componentchild.Airport);
@@ -432,12 +452,10 @@ namespace CreateChilServices
                                     }
                                 }
                             }
-
                         }
                         responseComponent.Close();
                     }
                 }
-
                 return cats;
             }
             catch (Exception ex)
@@ -599,11 +617,13 @@ namespace CreateChilServices
                     responseComponentGet.Close();
                 }
 
+                component.MCreated = "1";
+                /*
                 if (InformativoPadre == "1")
                 {
                     component.Informativo = "1";
                 }
-
+                */
                 return component;
             }
             catch (Exception ex)
@@ -675,7 +695,6 @@ namespace CreateChilServices
                 body += "\"Informativo\":\"" + component.Informativo + "\"," +
                  "\"ItemDescription\":\"" + component.ItemDescription + "\"," +
                  "\"ItemNumber\":\"" + component.ItemNumber + "\",";
-
                 if (component.Itinerary != 0)
                 {
                     body += "\"Itinerary\":";
@@ -683,6 +702,7 @@ namespace CreateChilServices
                     body += "\"id\":" + component.Itinerary + "";
                     body += "},";
                 }
+                body += "\"ManualCreated\":\"" + component.MCreated + "\",";
                 if (String.IsNullOrEmpty(component.Pagos))
                 {
                     body += "\"Pagos\":null,";
@@ -738,17 +758,14 @@ namespace CreateChilServices
                 else
                 {
 
-                    MessageBox.Show("Componenete No creado:" + content);
+                    MessageBox.Show("Componente No creado:" + content);
                 }
-
             }
             catch (Exception ex)
             {
                 MessageBox.Show("Error en creación de child: " + ex.Message + "Det" + ex.StackTrace);
             }
-
         }
-
         public void InsertPayable(Services service)
         {
             try
@@ -839,7 +856,7 @@ namespace CreateChilServices
                 ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
                 APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
                 clientInfoHeader.AppID = "Query Example";
-                String queryString = "SELECT FromAirport.Country.LookupName,ToAirport.Country.LookupName FROM CO.Itinerary WHERE ID =" + itinerary + "";
+                String queryString = "SELECT FromAirport.Country.LookupName,ToAirport.Country.LookupName FROM CO.Itinerary WHERE ID =" + itinerary;
                 clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
                 foreach (CSVTable table in queryCSV.CSVTables)
                 {
@@ -861,25 +878,54 @@ namespace CreateChilServices
                 return null;
             }
         }
-        private string GetMainHour(DateTime ata, DateTime atd)
+        private string GetMainHour(String ata, String atd)
         {
             try
             {
+                DateTime ATAGH = DateTime.Parse(ata);
+                DateTime ATDGH = DateTime.Parse(atd);
 
-                DateTime ATA = ata;
-                DateTime ATD = atd;
                 string hour = "EXTRAORDINARIO";
+                string hourata = "EXTRAORDINARIO";
+                string houratd = "EXTRAORDINARIO";
+
+                //MessageBox.Show("ATAGH: " + ATAGH.ToString());
+                //MessageBox.Show("ATDGH: " + ATDGH.ToString());
+
                 if (WHoursList.Count > 0)
                 {
                     foreach (WHours w in WHoursList)
                     {
-                        if (IsBetween(ATA, w.Opens, w.Closes) && w.Type == "CRITICO")
+                        if (IsBetween(ATAGH, w.ATAOpens, w.ATACloses) && w.Type == "CRITICO")
+                        {
+                            hourata = "CRITICO";
+                        }
+                        if (IsBetween(ATAGH, w.ATAOpens, w.ATACloses) && w.Type == "NORMAL")
+                        {
+                            hourata = "NORMAL";
+                        }
+                        if (IsBetween(ATDGH, w.ATDOpens, w.ATDCloses) && w.Type == "CRITICO")
+                        {
+                            houratd = "CRITICO";
+                        }
+                        if (IsBetween(ATDGH, w.ATDOpens, w.ATDCloses) && w.Type == "NORMAL")
+                        {
+                            houratd = "NORMAL";
+                        }
+                        if (hourata == houratd)
+                        {
+                            hour = hourata;
+                        }
+                        else if (hourata == "EXTRAORDINARIO" || houratd == "EXTRAORDINARIO")
+                        {
+                            hour = "EXTRAORDINARIO";
+                        }
+                        else if (hourata == "CRITICO" || houratd == "CRITICO")
                         {
                             hour = "CRITICO";
                         }
-                        if (IsBetween(ATA, w.Opens, w.Closes) && w.Type == "NORMAL")
+                        else
                         {
-
                             hour = "NORMAL";
                         }
                     }
@@ -896,11 +942,10 @@ namespace CreateChilServices
         {
             try
             {
-
                 ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
                 APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
                 clientInfoHeader.AppID = "Query Example";
-                String queryString = "SELECT OpensZULUTime,ClosesZULUTime,Type FROM CO.Airport_WorkingHours WHERE Airports =" + Arrival + " ORDER BY Type DESC";
+                String queryString = "SELECT OpensZULUTime,ClosesZULUTime,Type, ID FROM CO.Airport_WorkingHours WHERE Airports =" + Arrival + "";
                 clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1000, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
                 WHoursList = new List<WHours>();
                 foreach (CSVTable table in queryCSV.CSVTables)
@@ -911,9 +956,33 @@ namespace CreateChilServices
                         WHours hours = new WHours();
                         Char delimiter = '|';
                         String[] substrings = data.Split(delimiter);
-                        hours.Opens = DateTime.Parse(ATADay + " " + substrings[0]);
-                        hours.Closes = DateTime.Parse(ATDDay + " " + substrings[1]);
-
+                        hours.ATAOpens = DateTime.Parse(ATADay + " " + substrings[0]);
+                        hours.ATACloses = DateTime.Parse(ATADay + " " + substrings[1]);
+                        hours.ATDOpens = DateTime.Parse(ATDDay + " " + substrings[0]);
+                        hours.ATDCloses = DateTime.Parse(ATDDay + " " + substrings[1]);
+                        hours.id = Convert.ToInt32(substrings[3].Trim());
+                        /*
+                        MessageBox.Show("ATA OPEN:" + hours.ATAOpens.ToString() + "\n" +
+                            "ATA CLOSE:" + hours.ATACloses.ToString() + "\n" +
+                            "ID:" + hours.id.ToString() + "\n" +
+                            "ATD OPEN:" + hours.ATDOpens.ToString() + "\n" +
+                            "ATD CLOSE:" + hours.ATDCloses.ToString() + "\n" +
+                            "ID:" + hours.id.ToString());
+                            */
+                        if (DateTime.Compare(hours.ATAOpens, hours.ATACloses) > 0)
+                        {
+                            hours.ATACloses = hours.ATACloses.AddDays(1);
+                            hours.ATDCloses = hours.ATDCloses.AddDays(1);
+                            //MessageBox.Show(hours.Closes.ToString());
+                            /*
+                            MessageBox.Show("ATA OPEN:" + hours.ATAOpens.ToString() + "\n" +
+                            "ATA CLOSE:" + hours.ATACloses.ToString() + "\n" +
+                            "ID:" + hours.id.ToString() + "\n" +
+                            "ATD OPEN:" + hours.ATDOpens.ToString() + "\n" +
+                            "ATD CLOSE:" + hours.ATDCloses.ToString() + "\n" +
+                            "ID:" + hours.id.ToString());
+                            */
+                        }
                         switch (substrings[2].Trim())
                         {
                             case "1":
@@ -977,6 +1046,7 @@ namespace CreateChilServices
                 APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
                 clientInfoHeader.AppID = "Query Example";
                 String queryString = "SELECT ID,Services,Itinerary,ItemNumber,Airport FROM CO.Services  WHERE Incident =" + IncidentID + "  AND Paquete = '0' AND Componente = '1' Order BY Services.CreatedTime ASC";
+                GlobalContext.LogMessage(queryString.ToString());
                 clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 10000, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
                 foreach (CSVTable table in queryCSV.CSVTables)
                 {
@@ -989,20 +1059,25 @@ namespace CreateChilServices
                         service.ID = substrings[0];
                         service.ParentPax = substrings[1];
                         service.Itinerary = substrings[2];
+                        // IdItinerary = substrings[2];
                         service.ItemNumber = substrings[3];
                         service.Airport = substrings[4];
-
                         services.Add(service);
                     }
                 }
                 if (services.Count > 0)
                 {
                     string clase = GetClase();
+                    // MessageBox.Show("Itinerary ID: " + IdItinerary.ToString());
+                    // ATA = getATAItinerary(Convert.ToInt32(IdItinerary));
+                    // string whType = getWH();
+                    // GetItineraryHours(int.Parse(IdItinerary),whType);
+
                     foreach (Services item in services)
                     {
                         string[] vuelos = GetCountryLookItinerary(int.Parse(item.Itinerary));
                         GetItineraryHours(int.Parse(item.Itinerary));
-                        string MH = GetMainHour(ATA, ATD);
+                        string MH = GetMainHour(ATA.ToString(), ATD.ToString());
                         item.Cost = GetCostoPaquete(item, getItemNumber(Convert.ToInt32(item.ParentPax)), vuelos, MH, clase).ToString();
                         item.UnitCost = item.Cost;
                         item.Quantity = "1";
@@ -1015,7 +1090,6 @@ namespace CreateChilServices
                             {
                                 DateTime openDate;
                                 DateTime closeDate;
-
                                 string open = getOpenArrivalAirport(arrival);
                                 string close = getCloseArrivalAirport(arrival);
                                 DateTime ATA = getATAItinerary(Convert.ToInt32(item.Itinerary));
@@ -1026,7 +1100,6 @@ namespace CreateChilServices
                                 {
                                     antelacion = (ATA - openDate).TotalMinutes;
                                 }
-                                // MessageBox.Show("llegada: " + antelacion.ToString());
                                 extension = ((ATD - openDate).TotalMinutes) + 15;
                                 if (ATA.Date != ATD.Date)
                                 {
@@ -1041,7 +1114,6 @@ namespace CreateChilServices
                                         extension = 0;
                                     }
                                 }
-                                //MessageBox.Show("salida: " + extension.ToString());
                                 if (extension > 0)
                                 {
                                     minover = extension < 0 ? 0 : extension;
@@ -1051,9 +1123,7 @@ namespace CreateChilServices
                                     minover = (antelacion < 0 ? 0 : antelacion) + (extension < 0 ? 0 : extension);
                                 }
                             }
-                            //MessageBox.Show("Minutos: " + minover.ToString());
                         }
-
                         switch (OUM)
                         {
                             case "TW":
@@ -1068,11 +1138,18 @@ namespace CreateChilServices
                                 double c;
                                 if (double.TryParse(item.Cost, out c))
                                 {
-                                    if (minover > 0)
+                                    if (minover > 0 && item.ItemNumber != "PFEESAF0009")
                                     {
                                         TimeSpan t = TimeSpan.FromMinutes(minover);
                                         item.Quantity = (Math.Ceiling(t.TotalMinutes / 30)).ToString();
                                         item.Cost = (Convert.ToDouble(item.Cost) * Convert.ToDouble(item.Quantity)).ToString();
+                                    }
+                                    else if (item.ItemNumber == "PFEESAF0009")
+                                    {
+                                        item.Quantity = "4";
+                                        double tw = Convert.ToDouble(String.IsNullOrEmpty(GetMTOW(ICAOId)) ? "0" : GetMTOW(ICAOId));
+                                        item.Cost = (Convert.ToDouble(tw * Convert.ToDouble(item.Cost)) * 4).ToString();
+                                        // MessageBox.Show("Cost: " + item.Cost);
                                     }
                                     else
                                     {
@@ -1084,11 +1161,18 @@ namespace CreateChilServices
                                 double d;
                                 if (double.TryParse(item.Cost, out d))
                                 {
-                                    if (minover > 0)
+                                    if (minover > 0 && item.ItemNumber != "PFEESAF0009")
                                     {
                                         TimeSpan t = TimeSpan.FromMinutes(minover);
                                         item.Quantity = Math.Ceiling(t.TotalHours).ToString();
                                         item.Cost = (Convert.ToDouble(item.Cost) * Convert.ToDouble(item.Quantity)).ToString();
+                                    }
+                                    else if (item.ItemNumber == "PFEESAF0009")
+                                    {
+                                        item.Quantity = "2";
+                                        double tw = Convert.ToDouble(String.IsNullOrEmpty(GetMTOW(ICAOId)) ? "0" : GetMTOW(ICAOId));
+                                        item.Cost = (Convert.ToDouble(tw * Convert.ToDouble(item.Cost)) * 2).ToString();
+                                        // MessageBox.Show("Cost: " + item.Cost);
                                     }
                                     else
                                     {
@@ -1115,11 +1199,6 @@ namespace CreateChilServices
                         }
                         if (double.Parse(item.Cost) > 0)
                         {
-                            /*
-                              if (item.ItemNumber == "OSSEIAS0185" || item.ItemNumber == "DGAOVER0115")
-                            {
-                                MessageBox.Show("OVERTIME found: " + item.ItemNumber);
-                            } */
                             InsertPayable(item);
                         }
                         /*
@@ -1161,8 +1240,8 @@ namespace CreateChilServices
             catch (Exception ex)
             {
                 MessageBox.Show(ex.Message + " Det: " + ex.StackTrace);
+                GlobalContext.LogMessage(ex.Message + " Det: " + ex.StackTrace);
             }
-
         }
         public static bool IsBetween(DateTime input, DateTime date1, DateTime date2)
         {
@@ -1171,7 +1250,6 @@ namespace CreateChilServices
         public int getArrivalAirport(int Itinerarie)
         {
             int arriv = 0;
-
             ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
             APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
             clientInfoHeader.AppID = "Query Example";
@@ -1319,9 +1397,7 @@ namespace CreateChilServices
             }
             catch (Exception ex)
             {
-
                 MessageBox.Show("AirportOpen24: " + ex.Message + "Detail: " + ex.StackTrace);
-
                 return false;
             }
         }
@@ -1409,11 +1485,14 @@ namespace CreateChilServices
                 string User = Encoding.UTF8.GetString(Convert.FromBase64String("aW1wbGVtZW50YWRvcg=="));
                 string Pass = Encoding.UTF8.GetString(Convert.FromBase64String("U2luZXJneSoyMDE4"));
                 client.Authenticator = new HttpBasicAuthenticator("servicios", "Sinergy*2018");
-                string definicion = "?totalResults=true&q={str_item_number:'" + service.ItemNumber +
-                    "',$or:[{str_icao_iata_code:'IO_AEREO_" + service.Airport +
-                    "'},{str_icao_iata_code:{$exists:false}}],str_ft_arrival:'" + vuelos[0] +
-                    "',str_ft_depart:'" + vuelos[1] + "',str_schedule_type:'" + main +
-                    "',bol_int_fbo:" + fbo + "}";
+
+                string definicion = "?totalResults=true&q={str_item_number:'" + service.ItemNumber + "'" +
+                                ",str_ft_arrival:'" + vuelos[0] + "'" +
+                                ",str_ft_depart:'" + vuelos[1] + "'" +
+                                ",str_schedule_type:'" + main + "'" +
+                                ",bol_int_fbo:'" + fbo + "'" +
+                                ",$and:[{$or:[{str_icao_iata_code:'IO_AEREO_" + service.Airport + "'},{str_icao_iata_code:{$exists:false}}]}," +
+                                "{$or:[{str_aircraft_type:'" + ICAOId + "'},{str_aircraft_type:{$exists:false}}]}]}";
                 GlobalContext.LogMessage(definicion);
                 var request = new RestRequest("rest/v6/customCostosPaquetes/" + definicion, Method.GET);
                 IRestResponse response = client.Execute(request);
@@ -1434,7 +1513,7 @@ namespace CreateChilServices
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.InnerException.ToString());
+                GlobalContext.LogMessage(ex.InnerException.ToString());
                 return 0;
             }
         }
@@ -1444,7 +1523,7 @@ namespace CreateChilServices
             ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
             APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
             clientInfoHeader.AppID = "Query Example";
-            String queryString = "SELECT SUM(TicketAmount) FROM CO.Payables WHERE Services.Incident =" + IncidentID + "  AND Services.Services = " + PaxId + " GROUP BY Services.Services   ";
+            String queryString = "SELECT SUM(TicketAmount) FROM CO.Payables WHERE Services.Incident =" + IncidentID + "  AND Services.Services = " + PaxId + " GROUP BY Services.Services";
             clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
             foreach (CSVTable table in queryCSV.CSVTables)
             {
@@ -1528,7 +1607,6 @@ namespace CreateChilServices
                         fbo = data == "FBO" ? 1 : 0;
                     }
                 }
-
                 return fbo;
             }
             catch (Exception ex)

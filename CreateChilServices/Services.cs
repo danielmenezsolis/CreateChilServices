@@ -51,6 +51,7 @@ namespace CreateChilServices
         public int FuelId { get; set; }
         public string Categories { get; set; }
         public int ServiceParent { get; set; }
+        public string MCreated { get; set; }
     }
     public class Link
     {
@@ -142,8 +143,11 @@ namespace CreateChilServices
     }
     public class WHours
     {
-        public DateTime Opens { get; set; }
-        public DateTime Closes { get; set; }
+        public DateTime ATAOpens { get; set; }
+        public DateTime ATACloses { get; set; }
+        public DateTime ATDOpens { get; set; }
+        public DateTime ATDCloses { get; set; }
         public string Type { get; set; }
+        public int id { get; set; }
     }
 }
