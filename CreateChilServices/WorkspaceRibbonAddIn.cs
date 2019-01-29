@@ -39,7 +39,9 @@ namespace CreateChilServices
         public string ICAOId { get; set; }
         // public string IdItinerary { get; set; }
         public string CustomerName { get; set; }
-        public string ParentItemName { get; set; }
+        public string ParentItemDescription { get; set; }
+        public string ParentId { get; set; }
+
 
         public WorkspaceRibbonAddIn(bool inDesignMode, IRecordContext RecordContext, IGlobalContext GlobalContext)
         {
@@ -80,12 +82,6 @@ namespace CreateChilServices
                             ICAOId = getICAODesi(IncidentID);
                             SRType = GetSRType();
                             GetDeleteComponents();
-                            /*
-                            if (SRType == "FUEL")
-                            {
-                                Create
-                            }
-                            */
                             CreateChildComponents();
                             UpdatePackageCost();
                             RecordContext.ExecuteEditorCommand(EditorCommand.Save);
@@ -120,7 +116,6 @@ namespace CreateChilServices
                 {
                     result = true;
                 }
-
                 return result;
             }
             catch (Exception ex)
@@ -223,13 +218,13 @@ namespace CreateChilServices
                             component.ItemNumber = substrings[2];
                             component.Itinerary = Convert.ToInt32(substrings[3]);
                             InformativoPadre = substrings[4];
-                            ParentItemName = substrings[5];
-                            GetComponents(component);
-                            /*
-                            if (CustomerName.Contains("NETJET") && ParentItemName.Contains("(NJ)"))
+                            ParentItemDescription = substrings[5];
+                            ParentId = substrings[0];
+                            if (CustomerName.Contains("NETJETS") && (ParentItemDescription.Contains("(NJ)")))
                             {
-                                component.Informativo = "1";
-                            }*/
+                                InformativeNJ(ParentId);
+                            }
+                            GetComponents(component);
                         }
                     }
                 }
@@ -243,7 +238,6 @@ namespace CreateChilServices
         {
             try
             {
-                ParentItemName = component.ItemDescription;
                 string envelope = "<soapenv:Envelope" +
                  "   xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\"" +
                  "   xmlns:typ=\"http://xmlns.oracle.com/apps/scm/productModel/items/structures/structureServiceV2/types/\"" +
@@ -613,13 +607,19 @@ namespace CreateChilServices
                                 }
                             }
                         }
-
                     }
-
                     responseComponentGet.Close();
                 }
 
                 component.MCreated = "1";
+                if (component.ParentPaxId != Convert.ToDouble(ParentId) && CustomerName.Contains("NETJETS"))
+                {
+                    component.Informativo = "1";
+                }
+                if (component.ParentPaxId == Convert.ToDouble(ParentId) && ParentItemDescription.Contains("NJ") && CustomerName.Contains("NETJETS"))
+                {
+                    component.Componente = "0";
+                }
                 /*
                 if (InformativoPadre == "1")
                 {
@@ -992,8 +992,7 @@ namespace CreateChilServices
                                 break;
                             case "2":
                                 hours.Type = "CRITICO";
-                                break
-                                    ;
+                                break;
                             case "25":
                                 hours.Type = "NORMAL";
                                 break;
@@ -1468,6 +1467,42 @@ namespace CreateChilServices
             }
 
         }
+        public void InformativeNJ(string id)
+        {
+            try
+            {
+                var client = new RestClient("https://iccsmx.custhelp.com/");
+                var request = new RestRequest("/services/rest/connect/v1.4/CO.Services/" + id + "", Method.POST)
+                {
+                    RequestFormat = DataFormat.Json
+                };
+                var body = "{";
+                body +=
+                    "\"Informativo\":\"1\"";
+                body += "}";
+                GlobalContext.LogMessage(body);
+                request.AddParameter("application/json", body, ParameterType.RequestBody);
+                // easily add HTTP Headers
+                request.AddHeader("Authorization", "Basic ZW9saXZhczpTaW5lcmd5KjIwMTg=");
+                request.AddHeader("X-HTTP-Method-Override", "PATCH");
+                request.AddHeader("OSvC-CREST-Application-Context", "Update Service {"+ id + "}");
+                // execute the request
+                IRestResponse response = client.Execute(request);
+                var content = response.Content; // raw content as string
+                if (content == "")
+                {
+
+                }
+                else
+                {
+                    MessageBox.Show(response.Content);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message + " InformativeNJ: " + ex.StackTrace);
+            }
+        }
         private double GetCostoPaquete(Services service, string parentNumber, string[] vuelos, string main, string clase)
         {
             try
@@ -1493,6 +1528,13 @@ namespace CreateChilServices
                                 ",str_ft_depart:'" + vuelos[1] + "'" +
                                 ",str_schedule_type:'" + main + "'" +
                                 ",bol_int_fbo:'" + fbo + "'" +
+
+
+
+
+
+
+
                                 ",$and:[{$or:[{str_icao_iata_code:'IO_AEREO_" + service.Airport + "'},{str_icao_iata_code:{$exists:false}}]}," +
                                 "{$or:[{str_aircraft_type:'" + ICAOId + "'},{str_aircraft_type:{$exists:false}}]}]}";
                 GlobalContext.LogMessage(definicion);
@@ -1703,4 +1745,4 @@ namespace CreateChilServices
         }
     }
 
-}
+} 
