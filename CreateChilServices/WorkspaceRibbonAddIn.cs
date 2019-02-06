@@ -1,6 +1,7 @@
 ﻿using System;
 using System.AddIn;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.ServiceModel;
@@ -66,7 +67,7 @@ namespace CreateChilServices
                         BabyPayables = 0;
                         if (Init())
                         {
-                            Cursor.Current = Cursors.WaitCursor;
+
                             Incident = (IIncident)RecordContext.GetWorkspaceRecord(WorkspaceRecordType.Incident);
                             IncidentID = Incident.ID;
                             IList<ICfVal> IncCustomFieldList = Incident.CustomField;
@@ -82,12 +83,33 @@ namespace CreateChilServices
                             }
                             ICAOId = getICAODesi(IncidentID);
                             SRType = GetSRType();
+
+                            var watch = Stopwatch.StartNew();
+                            Cursor.Current = Cursors.WaitCursor;
                             GetDeleteComponents();
+                            watch.Stop();
+                            var elapsedMs = watch.Elapsed;
+                            elapsedMs = watch.Elapsed;
+                            GlobalContext.LogMessage("GetDeleteComponents: " + elapsedMs.TotalSeconds.ToString() + " Secs");
+
                             CreateChildComponents();
+                            watch.Stop();
+                            elapsedMs = watch.Elapsed;
+                            GlobalContext.LogMessage("CreateChildComponents: " + elapsedMs.TotalSeconds.ToString() + " Secs");
+
+                            watch = Stopwatch.StartNew();
                             UpdatePackageCost();
+                            watch.Stop();
+                            elapsedMs = watch.Elapsed;
+                            GlobalContext.LogMessage("UpdatePackageCost: " + elapsedMs.TotalSeconds.ToString() + " Secs");
+
+
+                            watch = System.Diagnostics.Stopwatch.StartNew();
                             RecordContext.ExecuteEditorCommand(EditorCommand.Save);
-                            Cursor.Current = Cursors.Default;
                             MessageBox.Show("Packages Found: " + Packages + "\n" + "Child Services Created: " + BabyPackages + "\n" + "Child Payables Created: " + BabyPayables);
+                            watch.Stop();
+                            elapsedMs = watch.Elapsed;
+                            GlobalContext.LogMessage("Packages & Message: " + elapsedMs.TotalSeconds.ToString() + " Secs");
                         }
                         break;
                 }
@@ -147,11 +169,13 @@ namespace CreateChilServices
         {
             try
             {
+                var watch = System.Diagnostics.Stopwatch.StartNew();
                 ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
                 APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
                 clientInfoHeader.AppID = "Query Example";
                 String queryString = "SELECT ID FROM CO.Services WHERE ManualCreated = '1' AND Incident = " + IncidentID;
-                clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 10000, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
+                List<string> id = new List<string>();
+                clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 100, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
                 if (queryCSV.CSVTables.Length > 0)
                 {
                     foreach (CSVTable table in queryCSV.CSVTables)
@@ -159,45 +183,54 @@ namespace CreateChilServices
                         String[] rowData = table.Rows;
                         foreach (String data in rowData)
                         {
-                            DeleteServices(Convert.ToInt32(data));
+                            id.Add(data);
                         }
                     }
                 }
+                watch.Stop();
+                var elapsedMs = watch.Elapsed;
+                GlobalContext.LogMessage("GetComponents: " + elapsedMs.TotalSeconds.ToString() + " Secs");
+                DeleteServices(id);
+
             }
             catch (Exception ex)
             {
                 MessageBox.Show(ex.Message);
             }
         }
-        public void DeleteServices(int id)
+        public void DeleteServices(List<string> id)
         {
             try
             {
-                var client = new RestClient("https://iccsmx.custhelp.com/");
-                var request = new RestRequest("/services/rest/connect/v1.4/CO.Services/" + id, Method.DELETE)
-                {
-                    RequestFormat = DataFormat.Json
-                };
-                request.AddHeader("Authorization", "Basic ZW9saXZhczpTaW5lcmd5KjIwMTg=");
-                request.AddHeader("X-HTTP-Method-Override", "DELETE");
-                request.AddHeader("OSvC-CREST-Application-Context", "Delete Service");
 
-                IRestResponse response = client.Execute(request);
-                var content = response.Content;
-                if (String.IsNullOrEmpty(content))
+                var client = new RestClient("https://iccsmx.custhelp.com/");
+                foreach (string i in id)
                 {
-                    //MessageBox.Show(content);
+
+                    var request = new RestRequest("/services/rest/connect/v1.4/CO.Services/" + i, Method.DELETE);
+                    request.RequestFormat = DataFormat.Json;
+                    request.AddHeader("Authorization", "Basic ZW9saXZhczpTaW5lcmd5KjIwMTg=");
+                    request.AddHeader("X-HTTP-Method-Override", "DELETE");
+                    request.AddHeader("OSvC-CREST-Application-Context", "Delete Service");
+                    IRestResponse response = client.Execute(request);
+                    /*
+                     * var content = response.Content;
+                    if (String.IsNullOrEmpty(content))
+                    {
+                        MessageBox.Show(content);
+                    }*/
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("DElete: " + ex.InnerException.ToString());
+                MessageBox.Show("Delete: " + ex.InnerException.ToString());
             }
         }
         public void CreateChildComponents()
         {
             try
             {
+
                 ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
                 APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
                 clientInfoHeader.AppID = "Query Example";
@@ -279,7 +312,7 @@ namespace CreateChilServices
                  "</typ:findStructure>" +
                  "</soapenv:Body>" +
                  "</soapenv:Envelope>";
-                GlobalContext.LogMessage(envelope);
+                //GlobalContext.LogMessage(envelope);
                 byte[] byteArray = Encoding.UTF8.GetBytes(envelope);
                 byte[] toEncodeAsBytes = System.Text.ASCIIEncoding.ASCII.GetBytes("itotal" + ":" + "Oracle123");
                 string credentials = System.Convert.ToBase64String(toEncodeAsBytes);
@@ -518,7 +551,7 @@ namespace CreateChilServices
                                           "</typ:findItem>" +
                                           "</soapenv:Body>" +
                                           "</soapenv:Envelope>";
-                GlobalContext.LogMessage(envelope);
+                //GlobalContext.LogMessage(envelope);
 
                 byte[] byteArray = Encoding.UTF8.GetBytes(envelope);
                 byte[] toEncodeAsBytes = System.Text.ASCIIEncoding.ASCII.GetBytes("itotal" + ":" + "Oracle123");
@@ -740,7 +773,7 @@ namespace CreateChilServices
                     body += "\"Precio\":\"" + component.Precio + "\"";
                 }
                 body += "}";
-                GlobalContext.LogMessage(body);
+                //GlobalContext.LogMessage(body);
                 request.AddParameter("application/json", body, ParameterType.RequestBody);
                 request.AddHeader("Authorization", "Basic ZW9saXZhczpTaW5lcmd5KjIwMTg=");
                 request.AddHeader("X-HTTP-Method-Override", "POST");
@@ -797,8 +830,7 @@ namespace CreateChilServices
                 body += "\"id\":" + service.ID + "";
                 body += "}";
                 body += "}";
-
-                GlobalContext.LogMessage(body);
+                //GlobalContext.LogMessage(body);
                 request.AddParameter("application/json", body, ParameterType.RequestBody);
                 request.AddHeader("Authorization", "Basic ZW9saXZhczpTaW5lcmd5KjIwMTg=");
                 request.AddHeader("X-HTTP-Method-Override", "POST");
@@ -1050,8 +1082,8 @@ namespace CreateChilServices
                 APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
                 clientInfoHeader.AppID = "Query Example";
                 String queryString = "SELECT ID,Services,Itinerary,ItemNumber,Airport,ItemDescription  FROM CO.Services  WHERE Incident =" + IncidentID + "  AND Paquete = '0' AND Componente = '1' Order BY Services.CreatedTime ASC";
-                GlobalContext.LogMessage(queryString.ToString());
-                clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 10000, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
+                //GlobalContext.LogMessage(queryString.ToString());
+                clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 500, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
                 foreach (CSVTable table in queryCSV.CSVTables)
                 {
                     String[] rowData = table.Rows;
@@ -1079,10 +1111,16 @@ namespace CreateChilServices
                     // GetItineraryHours(int.Parse(IdItinerary),whType);
                     foreach (Services item in services)
                     {
+                        var watch = System.Diagnostics.Stopwatch.StartNew();
+
                         string[] vuelos = GetCountryLookItinerary(int.Parse(item.Itinerary));
                         GetItineraryHours(int.Parse(item.Itinerary));
                         string MH = GetMainHour(ATA.ToString(), ATD.ToString());
                         item.Cost = GetCostoPaquete(item, getItemNumber(Convert.ToInt32(item.ParentPax)), vuelos, MH, clase).ToString();
+                        if (item.Cost == "0")
+                        {
+                            continue;
+                        }
                         item.UnitCost = item.Cost;
                         item.Quantity = "1";
                         minover = 0;
@@ -1212,11 +1250,12 @@ namespace CreateChilServices
                                 item.Quantity = getPaxInBound(item.ParentPax);
                             }
                         }
-
                         if (double.Parse(item.Cost) > 0)
                         {
                             InsertPayable(item);
                         }
+                        var tot = watch.Elapsed;
+                        GlobalContext.LogMessage("GetCostoPaquete: " + tot.TotalSeconds.ToString() + "def: " + item.ItemNumber);
                         /*
                         double price = 0;
                         double priceP = 0;
@@ -1537,7 +1576,7 @@ namespace CreateChilServices
                     "\"Costo\":\"" + price + "\"";
 
                 body += "}";
-                GlobalContext.LogMessage(body);
+                //GlobalContext.LogMessage(body);
                 request.AddParameter("application/json", body, ParameterType.RequestBody);
                 // easily add HTTP Headers
                 request.AddHeader("Authorization", "Basic ZW9saXZhczpTaW5lcmd5KjIwMTg=");
@@ -1574,7 +1613,7 @@ namespace CreateChilServices
                 body +=
                     "\"Informativo\":\"1\"";
                 body += "}";
-                GlobalContext.LogMessage(body);
+                //GlobalContext.LogMessage(body);
                 request.AddParameter("application/json", body, ParameterType.RequestBody);
                 // easily add HTTP Headers
                 request.AddHeader("Authorization", "Basic ZW9saXZhczpTaW5lcmd5KjIwMTg=");
@@ -1622,16 +1661,9 @@ namespace CreateChilServices
                                 ",str_ft_depart:'" + vuelos[1] + "'" +
                                 ",str_schedule_type:'" + main + "'" +
                                 ",bol_int_fbo:'" + fbo + "'" +
-
-
-
-
-
-
-
                                 ",$and:[{$or:[{str_icao_iata_code:'IO_AEREO_" + service.Airport + "'},{str_icao_iata_code:{$exists:false}}]}," +
                                 "{$or:[{str_aircraft_type:'" + ICAOId + "'},{str_aircraft_type:{$exists:false}}]}]}";
-                GlobalContext.LogMessage(definicion);
+                //GlobalContext.LogMessage(definicion);
                 var request = new RestRequest("rest/v6/customCostosPaquetes/" + definicion, Method.GET);
                 IRestResponse response = client.Execute(request);
                 ClaseParaPaquetes.RootObject rootObjectCat = JsonConvert.DeserializeObject<ClaseParaPaquetes.RootObject>(response.Content);
@@ -1651,7 +1683,7 @@ namespace CreateChilServices
             }
             catch (Exception ex)
             {
-                GlobalContext.LogMessage(ex.InnerException.ToString());
+                GlobalContext.LogMessage(ex.StackTrace);
                 return 0;
             }
         }
