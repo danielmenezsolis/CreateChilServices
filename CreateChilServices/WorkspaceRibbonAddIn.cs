@@ -43,6 +43,7 @@ namespace CreateChilServices
         public string ParentId { get; set; }
 
 
+
         public WorkspaceRibbonAddIn(bool inDesignMode, IRecordContext RecordContext, IGlobalContext GlobalContext)
         {
             if (inDesignMode == false)
@@ -216,7 +217,7 @@ namespace CreateChilServices
                             component.ID = Convert.ToInt32(substrings[0]);
                             component.Airport = substrings[1];
                             component.ItemNumber = substrings[2];
-                            component.Itinerary = Convert.ToInt32(substrings[3]);
+                            component.Itinerary = string.IsNullOrEmpty(substrings[3]) ? 0 : Convert.ToInt32(substrings[3]);
                             InformativoPadre = substrings[4];
                             ParentItemDescription = substrings[5];
                             ParentId = substrings[0];
@@ -770,6 +771,7 @@ namespace CreateChilServices
         }
         public void InsertPayable(Services service)
         {
+            double TicketAmount = Math.Round(Convert.ToDouble(service.Quantity) * Convert.ToDouble(service.UnitCost), 2);
             try
             {
                 BabyPayables++;
@@ -781,9 +783,11 @@ namespace CreateChilServices
                 string body = "{";
                 body += "\"Supplier\":\"" + Supplier + "\",";
                 body += "\"UOM\":\"" + OUM + "\",";
+                body += "\"ItemNumber\":\"" + service.ItemNumber + "\",";
+                body += "\"ItemDescription\":\"" + service.Description + "\",";
                 body += "\"UnitCost\":\"" + service.UnitCost + "\",";
                 body += "\"Quantity\":\"" + service.Quantity + "\",";
-                body += "\"TicketAmount\":\"" + service.Cost + "\",";
+                body += "\"TicketAmount\":\"" + TicketAmount + "\",";
                 body += "\"Currency\":";
                 body += "{";
                 body += "\"id\":" + (Currency == "MXN" ? 2 : 1).ToString() + "";
@@ -817,7 +821,6 @@ namespace CreateChilServices
             }
 
         }
-
         public bool GetItineraryCountries(int Itineray)
         {
             try
@@ -1046,7 +1049,7 @@ namespace CreateChilServices
                 ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
                 APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
                 clientInfoHeader.AppID = "Query Example";
-                String queryString = "SELECT ID,Services,Itinerary,ItemNumber,Airport FROM CO.Services  WHERE Incident =" + IncidentID + "  AND Paquete = '0' AND Componente = '1' Order BY Services.CreatedTime ASC";
+                String queryString = "SELECT ID,Services,Itinerary,ItemNumber,Airport,ItemDescription  FROM CO.Services  WHERE Incident =" + IncidentID + "  AND Paquete = '0' AND Componente = '1' Order BY Services.CreatedTime ASC";
                 GlobalContext.LogMessage(queryString.ToString());
                 clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 10000, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
                 foreach (CSVTable table in queryCSV.CSVTables)
@@ -1063,6 +1066,7 @@ namespace CreateChilServices
                         // IdItinerary = substrings[2];
                         service.ItemNumber = substrings[3];
                         service.Airport = substrings[4];
+                        service.Description = substrings[5];
                         services.Add(service);
                     }
                 }
@@ -1073,7 +1077,6 @@ namespace CreateChilServices
                     // ATA = getATAItinerary(Convert.ToInt32(IdItinerary));
                     // string whType = getWH();
                     // GetItineraryHours(int.Parse(IdItinerary),whType);
-
                     foreach (Services item in services)
                     {
                         string[] vuelos = GetCountryLookItinerary(int.Parse(item.Itinerary));
@@ -1198,6 +1201,18 @@ namespace CreateChilServices
                                 }
                                 break;
                         }
+                        if (getServiceParentName(item.ID) == "IPFERPS0052")
+                        {
+                            if (item.ItemNumber == "TUAASER240" || item.ItemNumber == "DSMSYSW0117")
+                            {
+                                item.Quantity = getPaxOutBound(item.ParentPax);
+                            }
+                            if (item.ItemNumber == "DNIDIPS0187")
+                            {
+                                item.Quantity = getPaxInBound(item.ParentPax);
+                            }
+                        }
+
                         if (double.Parse(item.Cost) > 0)
                         {
                             InsertPayable(item);
@@ -1402,6 +1417,85 @@ namespace CreateChilServices
                 return false;
             }
         }
+        private string getPaxOutBound(string Service)
+        {
+            try
+            {
+                string PaxOut = "";
+                ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
+                APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
+                clientInfoHeader.AppID = "Query Example";
+                String queryString = "SELECT PaxOutBound FROM CO.Services WHERE ID = " + Service;
+                clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
+                foreach (CSVTable table in queryCSV.CSVTables)
+                {
+                    String[] rowData = table.Rows;
+                    foreach (String data in rowData)
+                    {
+                        PaxOut = data;
+                    }
+                }
+                return String.IsNullOrEmpty(PaxOut) ? "1" : PaxOut;
+
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("getPaxOutBound" + ex.Message + "Det:" + ex.StackTrace);
+                return "1";
+            }
+        }
+        private string getPaxInBound(string Service)
+        {
+            try
+            {
+                string PaxInBound = "";
+                ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
+                APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
+                clientInfoHeader.AppID = "Query Example";
+                String queryString = "SELECT PaxInBound FROM CO.Services WHERE ID = " + Service;
+                clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
+                foreach (CSVTable table in queryCSV.CSVTables)
+                {
+                    String[] rowData = table.Rows;
+                    foreach (String data in rowData)
+                    {
+                        PaxInBound = data;
+                    }
+                }
+                return String.IsNullOrEmpty(PaxInBound) ? "1" : PaxInBound;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("getPaxInBound" + ex.Message + "Det:" + ex.StackTrace);
+                return "1";
+            }
+        }
+        private string getServiceParentName(string ID)
+        {
+            try
+            {
+                string ServiceParentName = "";
+                ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
+                APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
+                clientInfoHeader.AppID = "Query Example";
+                String queryString = "SELECT Services.ItemNumber FROM CO.Services WHERE ID = " + ID;
+                clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
+                foreach (CSVTable table in queryCSV.CSVTables)
+                {
+                    String[] rowData = table.Rows;
+                    foreach (String data in rowData)
+                    {
+                        ServiceParentName = data;
+                    }
+                }
+                return String.IsNullOrEmpty(ServiceParentName) ? "" : ServiceParentName;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("getServiceParentName" + ex.Message + "Det:" + ex.StackTrace);
+                return "";
+            }
+        }
         private string GetMTOW(string idICAO)
         {
             try
@@ -1485,7 +1579,7 @@ namespace CreateChilServices
                 // easily add HTTP Headers
                 request.AddHeader("Authorization", "Basic ZW9saXZhczpTaW5lcmd5KjIwMTg=");
                 request.AddHeader("X-HTTP-Method-Override", "PATCH");
-                request.AddHeader("OSvC-CREST-Application-Context", "Update Service {"+ id + "}");
+                request.AddHeader("OSvC-CREST-Application-Context", "Update Service {" + id + "}");
                 // execute the request
                 IRestResponse response = client.Execute(request);
                 var content = response.Content; // raw content as string
@@ -1745,4 +1839,4 @@ namespace CreateChilServices
         }
     }
 
-} 
+}
