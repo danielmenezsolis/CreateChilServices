@@ -1086,6 +1086,10 @@ namespace CreateChilServices
                 APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
                 clientInfoHeader.AppID = "Query Example";
                 String queryString = "SELECT ID,Services,Itinerary,ItemNumber,Airport,ItemDescription  FROM CO.Services  WHERE Incident =" + IncidentID + "  AND Paquete = '0' AND Componente = '1' Order BY Services.CreatedTime ASC";
+                if (CustomerName.Contains("NETJETS"))
+                {
+                    queryString = "SELECT ID,Services,Itinerary,ItemNumber,Airport,ItemDescription FROM CO.Services WHERE Incident =" + IncidentID + " AND(Paquete = '0' OR Componente = '0') AND Services IS NOT NULL ORDER BY Services.CreatedTime ASC";
+                }                
                 //GlobalContext.LogMessage(queryString.ToString());
                 clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 500, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
                 foreach (CSVTable table in queryCSV.CSVTables)
@@ -1667,7 +1671,7 @@ namespace CreateChilServices
                                 ",bol_int_fbo:'" + fbo + "'" +
                                 ",$and:[{$or:[{str_icao_iata_code:'IO_AEREO_" + service.Airport + "'},{str_icao_iata_code:{$exists:false}}]}," +
                                 "{$or:[{str_aircraft_type:'" + ICAOId + "'},{str_aircraft_type:{$exists:false}}]}]}";
-                //GlobalContext.LogMessage(definicion);
+                GlobalContext.LogMessage(definicion);
                 var request = new RestRequest("rest/v6/customCostosPaquetes/" + definicion, Method.GET);
                 IRestResponse response = client.Execute(request);
                 ClaseParaPaquetes.RootObject rootObjectCat = JsonConvert.DeserializeObject<ClaseParaPaquetes.RootObject>(response.Content);
