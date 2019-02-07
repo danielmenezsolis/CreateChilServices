@@ -108,7 +108,7 @@ namespace CreateChilServices
                                 elapsedMs = watch.Elapsed;
                                 GlobalContext.LogMessage("No packages: " + elapsedMs.TotalSeconds.ToString() + " Secs");
                                 watch = System.Diagnostics.Stopwatch.StartNew();
-                                MessageBox.Show("New packages not found.");
+                                MessageBox.Show("Any new packages wasn't found.");
                             }
                             RecordContext.ExecuteEditorCommand(EditorCommand.Save);
 
