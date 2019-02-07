@@ -43,8 +43,6 @@ namespace CreateChilServices
         public string ParentItemDescription { get; set; }
         public string ParentId { get; set; }
 
-
-
         public WorkspaceRibbonAddIn(bool inDesignMode, IRecordContext RecordContext, IGlobalContext GlobalContext)
         {
             if (inDesignMode == false)
@@ -67,7 +65,6 @@ namespace CreateChilServices
                         BabyPayables = 0;
                         if (Init())
                         {
-
                             Incident = (IIncident)RecordContext.GetWorkspaceRecord(WorkspaceRecordType.Incident);
                             IncidentID = Incident.ID;
                             IList<ICfVal> IncCustomFieldList = Incident.CustomField;
@@ -86,7 +83,7 @@ namespace CreateChilServices
 
                             var watch = Stopwatch.StartNew();
                             Cursor.Current = Cursors.WaitCursor;
-                            GetDeleteComponents();
+                            //GetDeleteComponents();
                             watch.Stop();
                             var elapsedMs = watch.Elapsed;
                             elapsedMs = watch.Elapsed;
@@ -97,16 +94,24 @@ namespace CreateChilServices
                             elapsedMs = watch.Elapsed;
                             GlobalContext.LogMessage("CreateChildComponents: " + elapsedMs.TotalSeconds.ToString() + " Secs");
 
-                            watch = Stopwatch.StartNew();
-                            UpdatePackageCost();
-                            watch.Stop();
-                            elapsedMs = watch.Elapsed;
-                            GlobalContext.LogMessage("UpdatePackageCost: " + elapsedMs.TotalSeconds.ToString() + " Secs");
-
-
-                            watch = System.Diagnostics.Stopwatch.StartNew();
+                            if (Packages > 0 )
+                            {
+                                UpdatePackageCost();
+                                watch.Stop();
+                                elapsedMs = watch.Elapsed;
+                                GlobalContext.LogMessage("UpdatePackageCost: " + elapsedMs.TotalSeconds.ToString() + " Secs");
+                                watch = System.Diagnostics.Stopwatch.StartNew();
+                                MessageBox.Show("Packages Found: " + Packages + "\n" + "Child Services Created: " + BabyPackages + "\n" + "Child Payables Created: " + BabyPayables);
+                            } else
+                            {
+                                watch.Stop();
+                                elapsedMs = watch.Elapsed;
+                                GlobalContext.LogMessage("No packages: " + elapsedMs.TotalSeconds.ToString() + " Secs");
+                                watch = System.Diagnostics.Stopwatch.StartNew();
+                                MessageBox.Show("New packages not found.");
+                            }
                             RecordContext.ExecuteEditorCommand(EditorCommand.Save);
-                            MessageBox.Show("Packages Found: " + Packages + "\n" + "Child Services Created: " + BabyPackages + "\n" + "Child Payables Created: " + BabyPayables);
+
                             watch.Stop();
                             elapsedMs = watch.Elapsed;
                             GlobalContext.LogMessage("Packages & Message: " + elapsedMs.TotalSeconds.ToString() + " Secs");
@@ -234,7 +239,7 @@ namespace CreateChilServices
                 ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
                 APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
                 clientInfoHeader.AppID = "Query Example";
-                String queryString = "SELECT ID,Airport,ItemNumber,Itinerary,Informativo,ItemDescription FROM CO.Services WHERE Paquete = '1' AND COMPONENTE IS NULL AND  Incident =  " + IncidentID;
+                String queryString = "SELECT ID,Airport,ItemNumber,Itinerary,Informativo,ItemDescription FROM CO.Services WHERE (Paquete = '1' AND Broken = 0) AND COMPONENTE IS NULL AND  Incident =  " + IncidentID;
                 clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 10000, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
                 if (queryCSV.CSVTables.Length > 0)
                 {
@@ -254,6 +259,7 @@ namespace CreateChilServices
                             InformativoPadre = substrings[4];
                             ParentItemDescription = substrings[5];
                             ParentId = substrings[0];
+                            BrokenPackage(ParentId);
                             if (CustomerName.Contains("NETJETS") && (ParentItemDescription.Contains("(NJ)")))
                             {
                                 InformativeNJ(ParentId);
@@ -1085,10 +1091,10 @@ namespace CreateChilServices
                 ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
                 APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
                 clientInfoHeader.AppID = "Query Example";
-                String queryString = "SELECT ID,Services,Itinerary,ItemNumber,Airport,ItemDescription  FROM CO.Services  WHERE Incident =" + IncidentID + "  AND Paquete = '0' AND Componente = '1' Order BY Services.CreatedTime ASC";
+                String queryString = "SELECT ID,Services,Itinerary,ItemNumber,Airport,ItemDescription  FROM CO.Services  WHERE Incident =" + IncidentID + "  AND Paquete = '0' AND (Componente = '1' AND Broken = 0) Order BY Services.CreatedTime ASC";
                 if (CustomerName.Contains("NETJETS"))
                 {
-                    queryString = "SELECT ID,Services,Itinerary,ItemNumber,Airport,ItemDescription FROM CO.Services WHERE Incident =" + IncidentID + " AND(Paquete = '0' OR Componente = '0') AND Services IS NOT NULL ORDER BY Services.CreatedTime ASC";
+                    queryString = "SELECT ID,Services,Itinerary,ItemNumber,Airport,ItemDescription FROM CO.Services WHERE Incident =" + IncidentID + " AND(Paquete = '0' OR Componente = '0') AND Services IS NOT NULL AND Broken = 0 ORDER BY Services.CreatedTime ASC";
                 }                
                 //GlobalContext.LogMessage(queryString.ToString());
                 clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 500, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
@@ -1119,8 +1125,8 @@ namespace CreateChilServices
                     // GetItineraryHours(int.Parse(IdItinerary),whType);
                     foreach (Services item in services)
                     {
+                        SearchPayable(item);
                         var watch = System.Diagnostics.Stopwatch.StartNew();
-
                         string[] vuelos = GetCountryLookItinerary(int.Parse(item.Itinerary));
                         GetItineraryHours(int.Parse(item.Itinerary));
                         string MH = GetMainHour(ATA.ToString(), ATD.ToString());
@@ -1627,6 +1633,78 @@ namespace CreateChilServices
                 request.AddHeader("Authorization", "Basic ZW9saXZhczpTaW5lcmd5KjIwMTg=");
                 request.AddHeader("X-HTTP-Method-Override", "PATCH");
                 request.AddHeader("OSvC-CREST-Application-Context", "Update Service {" + id + "}");
+                // execute the request
+                IRestResponse response = client.Execute(request);
+                var content = response.Content; // raw content as string
+                if (content == "")
+                {
+
+                }
+                else
+                {
+                    MessageBox.Show(response.Content);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message + " InformativeNJ: " + ex.StackTrace);
+            }
+        }
+        public void BrokenPackage(string id)
+        {
+            try
+            {
+                var client = new RestClient("https://iccsmx.custhelp.com/");
+                var request = new RestRequest("/services/rest/connect/v1.4/CO.Services/" + id + "", Method.POST)
+                {
+                    RequestFormat = DataFormat.Json
+                };
+                var body = "{";
+                body +=
+                    "\"Broken\":true";
+                body += "}";
+                //GlobalContext.LogMessage(body);
+                request.AddParameter("application/json", body, ParameterType.RequestBody);
+                // easily add HTTP Headers
+                request.AddHeader("Authorization", "Basic ZW9saXZhczpTaW5lcmd5KjIwMTg=");
+                request.AddHeader("X-HTTP-Method-Override", "PATCH");
+                request.AddHeader("OSvC-CREST-Application-Context", "Update Service {" + id + "}");
+                // execute the request
+                IRestResponse response = client.Execute(request);
+                var content = response.Content; // raw content as string
+                if (content == "")
+                {
+
+                }
+                else
+                {
+                    MessageBox.Show(response.Content);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message + " InformativeNJ: " + ex.StackTrace);
+            }
+        }
+        public void SearchPayable(Services service)
+        {
+            try
+            {
+                var client = new RestClient("https://iccsmx.custhelp.com/");
+                var request = new RestRequest("/services/rest/connect/v1.4/CO.Services/" + service.ID + "", Method.POST)
+                {
+                    RequestFormat = DataFormat.Json
+                };
+                var body = "{";
+                body +=
+                    "\"Broken\":true";
+                body += "}";
+                GlobalContext.LogMessage(body);
+                request.AddParameter("application/json", body, ParameterType.RequestBody);
+                // easily add HTTP Headers
+                request.AddHeader("Authorization", "Basic ZW9saXZhczpTaW5lcmd5KjIwMTg=");
+                request.AddHeader("X-HTTP-Method-Override", "PATCH");
+                request.AddHeader("OSvC-CREST-Application-Context", "Update Service {" + service.ID + "}");
                 // execute the request
                 IRestResponse response = client.Execute(request);
                 var content = response.Content; // raw content as string
