@@ -10,7 +10,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>CreateChilServices</RootNamespace>
     <AssemblyName>CreateChilServices</AssemblyName>
-    <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.7.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <TargetFrameworkProfile />
   </PropertyGroup>
@@ -45,8 +45,9 @@
     <Reference Include="RestSharp">
       <HintPath>..\packages\RestSharp.106.5.4\lib\net452\RestSharp.dll</HintPath>
     </Reference>
-    <Reference Include="RightNow.AddIns.AddInViews">
-      <HintPath>..\..\..\..\..\AppData\Roaming\RightNow_Technologies\iccsmx\18.8.4305.262\AddInPipeline\AddInViews\RightNow.AddIns.AddInViews.dll</HintPath>
+    <Reference Include="RightNow.AddIns.AddInViews, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\..\AppData\Roaming\RightNow_Technologies\iccsmx\18.11.277.274\AddInPipeline\AddInViews\RightNow.AddIns.AddInViews.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.AddIn">

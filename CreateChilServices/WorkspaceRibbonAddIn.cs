@@ -654,6 +654,10 @@ namespace CreateChilServices
                 {
                     component.Componente = "0";
                 }
+                if (component.ItemNumber == "ASFIEAP357" && CustomerName.Contains("NETJETS"))
+                {
+                    component.Informativo = "1";
+                }
                 /*
                 if (InformativoPadre == "1")
                 {
