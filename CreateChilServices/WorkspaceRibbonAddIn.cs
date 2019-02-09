@@ -3,13 +3,16 @@ using System.AddIn;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net;
+using System.Runtime.InteropServices;
 using System.ServiceModel;
 using System.ServiceModel.Channels;
 using System.Text;
 using System.Windows.Forms;
 using System.Xml;
 using System.Xml.Linq;
+using System.Xml.Serialization;
 using CreateChilServices.SOAPICCS;
 using Newtonsoft.Json;
 using RestSharp;
@@ -42,6 +45,7 @@ namespace CreateChilServices
         public string CustomerName { get; set; }
         public string ParentItemDescription { get; set; }
         public string ParentId { get; set; }
+        public ClaseParaPaquetes.RootObject PaquetesCostos { get; set; }
 
         public WorkspaceRibbonAddIn(bool inDesignMode, IRecordContext RecordContext, IGlobalContext GlobalContext)
         {
@@ -80,41 +84,31 @@ namespace CreateChilServices
                             }
                             ICAOId = getICAODesi(IncidentID);
                             SRType = GetSRType();
-
-                            var watch = Stopwatch.StartNew();
-                            Cursor.Current = Cursors.WaitCursor;
                             //GetDeleteComponents();
-                            watch.Stop();
-                            var elapsedMs = watch.Elapsed;
-                            elapsedMs = watch.Elapsed;
-                            GlobalContext.LogMessage("GetDeleteComponents: " + elapsedMs.TotalSeconds.ToString() + " Secs");
-
+                            Cursor.Current = Cursors.WaitCursor;
+                            var watch = Stopwatch.StartNew();
                             CreateChildComponents();
                             watch.Stop();
-                            elapsedMs = watch.Elapsed;
+                            var elapsedMs = watch.Elapsed;
                             GlobalContext.LogMessage("CreateChildComponents: " + elapsedMs.TotalSeconds.ToString() + " Secs");
 
-                            if (Packages > 0 )
+                            watch = Stopwatch.StartNew();
+                            if (Packages > 0)
                             {
                                 UpdatePackageCost();
-                                watch.Stop();
-                                elapsedMs = watch.Elapsed;
-                                GlobalContext.LogMessage("UpdatePackageCost: " + elapsedMs.TotalSeconds.ToString() + " Secs");
-                                watch = System.Diagnostics.Stopwatch.StartNew();
                                 MessageBox.Show("Packages Found: " + Packages + "\n" + "Child Services Created: " + BabyPackages + "\n" + "Child Payables Created: " + BabyPayables);
-                            } else
+                            }
+                            else
                             {
-                                watch.Stop();
-                                elapsedMs = watch.Elapsed;
-                                GlobalContext.LogMessage("No packages: " + elapsedMs.TotalSeconds.ToString() + " Secs");
-                                watch = System.Diagnostics.Stopwatch.StartNew();
                                 MessageBox.Show("Any new packages wasn't found.");
                             }
                             RecordContext.ExecuteEditorCommand(EditorCommand.Save);
-
                             watch.Stop();
                             elapsedMs = watch.Elapsed;
+
                             GlobalContext.LogMessage("Packages & Message: " + elapsedMs.TotalSeconds.ToString() + " Secs");
+                            Cursor.Current = Cursors.Default;
+
                         }
                         break;
                 }
@@ -264,7 +258,8 @@ namespace CreateChilServices
                             {
                                 InformativeNJ(ParentId);
                             }
-                            GetComponents(component);
+                            NGetComponents(component);
+                            //GetComponents(component);
                         }
                     }
                 }
@@ -274,6 +269,255 @@ namespace CreateChilServices
                 MessageBox.Show("CreateChildComponents: " + ex.Message + "Det: " + ex.StackTrace);
             }
         }
+        public void NGetComponents(ComponentChild componentparent)
+        {
+            try
+            {
+                string envelope = "<soap:Envelope " +
+                "	xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\"" +
+                "	xmlns:pub=\"http://xmlns.oracle.com/oxp/service/PublicReportService\">" +
+                 "<soap:Header/>" +
+                "<soap:Body>" +
+                "<pub:runReport>" +
+                "<pub:reportRequest>" +
+                "<pub:attributeFormat>xml</pub:attributeFormat>" +
+                "<pub:attributeLocale></pub:attributeLocale>" +
+                "<pub:attributeTemplate></pub:attributeTemplate>" +
+                "<pub:reportAbsolutePath>/Custom/Integracion/XX_PAQUETES_CX_REP.xdo</pub:reportAbsolutePath>" +
+                "<pub:sizeOfDataChunkDownload>-1</pub:sizeOfDataChunkDownload>" +
+                "<pub:parameterNameValues>" +
+                                "<pub:item>" +
+                                    "<pub:name>pAereo</pub:name> " +
+                                    "<pub:values> " +
+                                        "<pub:item>IO_AEREO_" + componentparent.Airport + "</pub:item> " +
+                                    "</pub:values> " +
+                                "</pub:item> " +
+                                "<pub:item> " +
+                                   "<pub:name>pItem</pub:name>" +
+                                    "<pub:values>" +
+                                        "<pub:item>" + componentparent.ItemNumber + "</pub:item>" +
+                                    "</pub:values>" +
+                                "</pub:item>" +
+                            "</pub:parameterNameValues>" +
+                "</pub:reportRequest>" +
+                "</pub:runReport>" +
+                "</soap:Body>" +
+                "</soap:Envelope>";
+                GlobalContext.LogMessage(envelope);
+                byte[] byteArray = Encoding.UTF8.GetBytes(envelope);
+                // Construct the base 64 encoded string used as credentials for the service call
+                byte[] toEncodeAsBytes = ASCIIEncoding.ASCII.GetBytes("itotal" + ":" + "Oracle123");
+                string credentials = Convert.ToBase64String(toEncodeAsBytes);
+                // Create HttpWebRequest connection to the service
+                HttpWebRequest request =
+                 (HttpWebRequest)WebRequest.Create("https://egqy-test.fa.us6.oraclecloud.com:443/xmlpserver/services/ExternalReportWSSService");
+                // Configure the request content type to be xml, HTTP method to be POST, and set the content length
+                request.Method = "POST";
+
+                request.ContentType = "application/soap+xml; charset=UTF-8;action=\"\"";
+                request.ContentLength = byteArray.Length;
+                // Configure the request to use basic authentication, with base64 encoded user name and password, to invoke the service.
+                request.Headers.Add("Authorization", "Basic " + credentials);
+                // Set the SOAP action to be invoked; while the call works without this, the value is expected to be set based as per standards
+                //request.Headers.Add("SOAPAction", "http://xmlns.oracle.com/apps/cdm/foundation/parties/organizationService/applicationModule/findOrganizationProfile");
+                // Write the xml payload to the request
+                Stream dataStream = request.GetRequestStream();
+                dataStream.Write(byteArray, 0, byteArray.Length);
+                dataStream.Close();
+                // Write the xml payload to the request
+                XDocument doc;
+                XmlDocument docu = new XmlDocument();
+                string result;
+                using (WebResponse response = request.GetResponse())
+                {
+                    using (Stream stream = response.GetResponseStream())
+                    {
+                        doc = XDocument.Load(stream);
+                        result = doc.ToString();
+                        XmlDocument xmlDoc = new XmlDocument();
+                        xmlDoc.LoadXml(result);
+                        XmlNamespaceManager nms = new XmlNamespaceManager(xmlDoc.NameTable);
+                        nms.AddNamespace("env", "http://schemas.xmlsoap.org/soap/envelope/");
+                        nms.AddNamespace("ns2", "http://xmlns.oracle.com/oxp/service/PublicReportService");
+
+                        XmlNode desiredNode = xmlDoc.SelectSingleNode("//ns2:runReportReturn", nms);
+                        if (desiredNode.HasChildNodes)
+                        {
+                            for (int i = 0; i < desiredNode.ChildNodes.Count; i++)
+                            {
+                                if (desiredNode.ChildNodes[i].LocalName == "reportBytes")
+                                {
+                                    byte[] data = Convert.FromBase64String(desiredNode.ChildNodes[i].InnerText);
+                                    string decodedString = Encoding.UTF8.GetString(data);
+                                    XmlTextReader reader = new XmlTextReader(new System.IO.StringReader(decodedString));
+                                    reader.Read();
+                                    XmlSerializer serializer = new XmlSerializer(typeof(DATA_DS));
+                                    DATA_DS res = (DATA_DS)serializer.Deserialize(reader);
+                                    if (res.PAQUETE.NIVEL_1 != null)
+                                    {
+                                        foreach (NIVEL_1 n1 in res.PAQUETE.NIVEL_1)
+                                        {
+                                            ComponentChild componentchild1 = new ComponentChild()
+                                            {
+                                                ParentPaxId = componentparent.ID,
+                                                ServiceParent = componentparent.ID,
+                                                Airport = componentparent.Airport,
+                                                Incident = IncidentID,
+
+                                                Componente = "1",
+                                                MCreated = "1",
+                                                Itinerary = componentparent.Itinerary,
+                                                ItemNumber = n1.ITEM_HIJO,
+                                                ItemDescription = n1.DESCRIPTION_HIJO,
+                                                ParticipacionCobro = n1.XX_PARTICIPACION_COBRO_HIJO == "SI" ? "1" : "0",
+                                                CobroParticipacionNj = n1.XX_COBRO_PARTICIPACION_NJ_HIJO == "SI" ? "1" : "0",
+                                                Pagos = n1.XX_PAGOS_HIJO,
+                                                ClasificacionPagos = n1.XX_CLASIFICACION_PAGO_HIJO,
+                                                Informativo = n1.XX_INFORMATIVO_HIJO == "SI" ? "1" : "0",
+                                                Paquete = n1.XX_PAQUETE_INV_HIJO == "SI" ? "1" : "0",
+                                                Categories = string.Join("+", n1.CAT_NIVEL_1.Select(o => o.CATALOG_CODE).ToArray()),
+                                            };
+
+                                            int id1 = NInsertComponent(componentchild1);
+
+                                            if (n1.PAQUETE_2 != null)
+                                            {
+                                                Packages++;
+                                                List<NIVEL_2> nivel2 = n1.PAQUETE_2.NIVEL_2;
+                                                foreach (NIVEL_2 n2 in nivel2)
+                                                {
+
+                                                    ComponentChild componentchild2 = new ComponentChild()
+                                                    {
+                                                        ParentPaxId = id1,
+                                                        ServiceParent = id1,
+                                                        Airport = componentparent.Airport,
+                                                        Incident = IncidentID,
+                                                        Componente = "1",
+                                                        MCreated = "1",
+                                                        Itinerary = componentparent.Itinerary,
+                                                        ItemNumber = n2.ITEM_HIJO,
+                                                        ItemDescription = n2.DESCRIPTION_HIJO,
+                                                        ParticipacionCobro = n2.XX_PARTICIPACION_COBRO_HIJO == "SI" ? "1" : "0",
+                                                        CobroParticipacionNj = n2.XX_COBRO_PARTICIPACION_NJ_HIJO == "SI" ? "1" : "0",
+                                                        Pagos = n2.XX_PAGOS_HIJO,
+                                                        ClasificacionPagos = n2.XX_CLASIFICACION_PAGO_HIJO,
+                                                        Informativo = n2.XX_INFORMATIVO_HIJO == "SI" ? "1" : "0",
+                                                        Paquete = n2.XX_PAQUETE_INV_HIJO == "SI" ? "1" : "0",
+                                                        Categories = string.Join("+", n2.CAT_NIVEL_2.Select(o => o.CATALOG_CODE).ToArray())
+                                                    };
+
+
+                                                    int id2 = NInsertComponent(componentchild2);
+
+
+                                                    if (n2.PAQUETE_3 != null)
+                                                    {
+                                                        Packages++;
+                                                        List<NIVEL_3> nivel3 = n2.PAQUETE_3.NIVEL_3;
+                                                        foreach (NIVEL_3 n3 in nivel3)
+                                                        {
+
+                                                            ComponentChild componentchild3 = new ComponentChild()
+                                                            {
+                                                                ParentPaxId = id2,
+                                                                ServiceParent = id2,
+                                                                Airport = componentparent.Airport,
+                                                                Incident = IncidentID,
+                                                                Componente = "1",
+                                                                MCreated = "1",
+                                                                Itinerary = componentparent.Itinerary,
+                                                                ItemNumber = n3.ITEM_HIJO,
+                                                                ItemDescription = n3.DESCRIPTION_HIJO,
+                                                                ParticipacionCobro = n3.XX_PARTICIPACION_COBRO_HIJO == "SI" ? "1" : "0",
+                                                                CobroParticipacionNj = n3.XX_COBRO_PARTICIPACION_NJ_HIJO == "SI" ? "1" : "0",
+                                                                Pagos = n3.XX_PAGOS_HIJO,
+                                                                ClasificacionPagos = n3.XX_CLASIFICACION_PAGO_HIJO,
+                                                                Informativo = n3.XX_INFORMATIVO_HIJO == "SI" ? "1" : "0",
+                                                                Paquete = n3.XX_PAQUETE_INV_HIJO == "SI" ? "1" : "0",
+                                                                Categories = string.Join("+", n3.CAT_NIVEL_3.Select(o => o.CATALOG_CODE).ToArray())
+                                                            };
+
+                                                            int id3 = NInsertComponent(componentchild3);
+
+                                                            if (n3.PAQUETE_4 != null)
+                                                            {
+                                                                Packages++;
+                                                                List<NIVEL_4> nivel4 = n3.PAQUETE_4.NIVEL_4;
+                                                                foreach (NIVEL_4 n4 in nivel4)
+                                                                {
+
+                                                                    ComponentChild componentchild4 = new ComponentChild()
+                                                                    {
+                                                                        ParentPaxId = id1,
+                                                                        ServiceParent = id1,
+                                                                        Airport = componentparent.Airport,
+                                                                        Incident = IncidentID,
+                                                                        Componente = "1",
+                                                                        MCreated = "1",
+                                                                        Itinerary = componentparent.Itinerary,
+                                                                        ItemNumber = n4.ITEM_HIJO,
+                                                                        ItemDescription = n4.DESCRIPTION_HIJO,
+                                                                        ParticipacionCobro = n4.XX_PARTICIPACION_COBRO_HIJO == "SI" ? "1" : "0",
+                                                                        CobroParticipacionNj = n4.XX_COBRO_PARTICIPACION_NJ_HIJO == "SI" ? "1" : "0",
+                                                                        Pagos = n4.XX_PAGOS_HIJO,
+                                                                        ClasificacionPagos = n4.XX_CLASIFICACION_PAGO_HIJO,
+                                                                        Informativo = n4.XX_INFORMATIVO_HIJO == "SI" ? "1" : "0",
+                                                                        Paquete = n4.XX_PAQUETE_INV_HIJO == "SI" ? "1" : "0",
+                                                                        Categories = string.Join("+", n4.CAT_NIVEL_4.Select(o => o.CATALOG_CODE).ToArray())
+                                                                    };
+
+                                                                    int id4 = NInsertComponent(componentchild4);
+                                                                    if (n4.PAQUETE_5 != null)
+                                                                    {
+                                                                        Packages++;
+                                                                        List<NIVEL_5> nivel5 = n4.PAQUETE_5.NIVEL_5;
+                                                                        foreach (NIVEL_5 n5 in nivel5)
+                                                                        {
+                                                                            ComponentChild componentchild5 = new ComponentChild()
+                                                                            {
+                                                                                ParentPaxId = id4,
+                                                                                ServiceParent = id4,
+                                                                                Airport = componentparent.Airport,
+                                                                                Incident = IncidentID,
+                                                                                Componente = "1",
+                                                                                MCreated = "1",
+                                                                                Itinerary = componentparent.Itinerary,
+                                                                                ItemNumber = n5.ITEM_HIJO,
+                                                                                ItemDescription = n5.DESCRIPTION_HIJO,
+                                                                                ParticipacionCobro = n5.XX_PARTICIPACION_COBRO_HIJO == "SI" ? "1" : "0",
+                                                                                CobroParticipacionNj = n5.XX_COBRO_PARTICIPACION_NJ_HIJO == "SI" ? "1" : "0",
+                                                                                Pagos = n5.XX_PAGOS_HIJO,
+                                                                                ClasificacionPagos = n5.XX_CLASIFICACION_PAGO_HIJO,
+                                                                                Informativo = n5.XX_INFORMATIVO_HIJO == "SI" ? "1" : "0",
+                                                                                Paquete = n5.XX_PAQUETE_INV_HIJO == "SI" ? "1" : "0",
+                                                                                Categories = string.Join("+", n5.CAT_NIVEL_5.Select(o => o.CATALOG_CODE).ToArray())
+                                                                            };
+                                                                            int id5 = NInsertComponent(componentchild5);
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                MessageBox.Show("GetNComponents" + e.Message + "Det:" + e.StackTrace);
+            }
+        }
+
         public void GetComponents(ComponentChild component)
         {
             try
@@ -678,6 +922,138 @@ namespace CreateChilServices
                 return null;
             }
         }
+        public int NInsertComponent(ComponentChild component)
+        {
+            try
+            {
+                int insert = 0;
+                var client = new RestClient("https://iccsmx.custhelp.com/");
+                var request = new RestRequest("/services/rest/connect/v1.4/CO.Services/", Method.POST)
+                {
+                    RequestFormat = DataFormat.Json
+                };
+                string body = "{";
+                body += "\"Airport\":\"" + component.Airport + "\",";
+                body += "\"ParentPaxId\":\"" + component.ParentPaxId + "\",";
+
+                if (!String.IsNullOrEmpty(component.ServiceParent.ToString()) && component.ServiceParent > 0)
+                {
+                    body += "\"Services\":";
+                    body += "{";
+                    body += "\"id\":" + component.ServiceParent + "";
+                    body += "},";
+                }
+
+                if (String.IsNullOrEmpty(component.CobroParticipacionNj))
+                {
+                    body += "\"CobroParticipacionNj\":null,";
+                }
+                else
+                {
+                    body += "\"CobroParticipacionNj\":\"" + component.CobroParticipacionNj + "\",";
+                }
+                if (String.IsNullOrEmpty(component.Categories))
+                {
+                    body += "\"Categories\":null,";
+                }
+                else
+                {
+                    body += "\"Categories\":\"" + component.Categories + "\",";
+                }
+
+                if (String.IsNullOrEmpty(component.ClasificacionPagos))
+                {
+                    body += "\"ClasificacionPagos\":null,";
+                }
+                else
+                {
+                    body += "\"ClasificacionPagos\":\"" + component.ClasificacionPagos + "\",";
+                }
+                body += "\"Componente\":\"" + component.Componente + "\",";
+
+                if (String.IsNullOrEmpty(component.Costo))
+                {
+                    body += "\"Costo\":null,";
+                }
+                else
+                {
+                    body += "\"Costo\":\"" + component.Costo + "\",";
+                }
+                body += "\"Incident\":";
+                body += "{";
+                body += "\"id\":" + Convert.ToInt32(component.Incident) + "";
+                body += "},";
+                body += "\"Informativo\":\"" + component.Informativo + "\"," +
+                 "\"ItemDescription\":\"" + component.ItemDescription + "\"," +
+                 "\"ItemNumber\":\"" + component.ItemNumber + "\",";
+                if (component.Itinerary != 0)
+                {
+                    body += "\"Itinerary\":";
+                    body += "{";
+                    body += "\"id\":" + component.Itinerary + "";
+                    body += "},";
+                }
+                body += "\"ManualCreated\":\"" + component.MCreated + "\",";
+                if (String.IsNullOrEmpty(component.Pagos))
+                {
+                    body += "\"Pagos\":null,";
+                }
+                else
+                {
+                    body += "\"Pagos\":\"" + component.Pagos + "\",";
+                }
+                body += "\"Paquete\":\"" + component.Paquete + "\",";
+                if (String.IsNullOrEmpty(component.ParticipacionCobro))
+                {
+                    body += "\"ParticipacionCobro\":null,";
+                }
+                else
+                {
+                    body += "\"ParticipacionCobro\":\"" + component.ParticipacionCobro + "\",";
+                }
+                if (String.IsNullOrEmpty(component.FuelId.ToString()))
+                {
+                    body += "\"fuel_id\":null,";
+                }
+                else
+                {
+                    body += "\"fuel_id\":" + component.FuelId + ",";
+                }
+                if (String.IsNullOrEmpty(component.Precio))
+                {
+                    body += "\"Precio\":null";
+                }
+                else
+                {
+                    body += "\"Precio\":\"" + component.Precio + "\"";
+                }
+                body += "}";
+                GlobalContext.LogMessage(body);
+                request.AddParameter("application/json", body, ParameterType.RequestBody);
+                request.AddHeader("Authorization", "Basic ZW9saXZhczpTaW5lcmd5KjIwMTg=");
+                request.AddHeader("X-HTTP-Method-Override", "POST");
+                request.AddHeader("OSvC-CREST-Application-Context", "Create Service");
+                IRestResponse response = client.Execute(request);
+                var content = response.Content;
+                if (response.StatusCode == HttpStatusCode.Created)
+                {
+                    BabyPackages++;
+                    RootObject rootObject = JsonConvert.DeserializeObject<RootObject>(response.Content);
+                    insert = rootObject.id;
+                }
+                else
+                {
+                    MessageBox.Show("Componente No creado:" + content);
+                }
+                return insert;
+            }
+            catch (Exception ex)
+            {
+
+                MessageBox.Show("Error en creación de child: " + ex.Message + "Det" + ex.StackTrace);
+                return 0;
+            }
+        }
         public void InsertComponent(ComponentChild component)
         {
             try
@@ -981,7 +1357,7 @@ namespace CreateChilServices
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message + "Det:" + ex.StackTrace);
+                MessageBox.Show("GetMainHour: " + ex.Message + "Det:" + ex.StackTrace);
                 return "";
             }
         }
@@ -1084,6 +1460,10 @@ namespace CreateChilServices
         {
             try
             {
+
+                PaquetesCostos = GetAllPaquetesCostos();
+
+
                 double antelacion = 0;
                 double extension = 0;
                 double minover = 0;
@@ -1095,8 +1475,8 @@ namespace CreateChilServices
                 if (CustomerName.Contains("NETJETS"))
                 {
                     queryString = "SELECT ID,Services,Itinerary,ItemNumber,Airport,ItemDescription FROM CO.Services WHERE Incident =" + IncidentID + " AND(Paquete = '0' OR Componente = '0') AND Services IS NOT NULL AND Broken = 0 ORDER BY Services.CreatedTime ASC";
-                }                
-                //GlobalContext.LogMessage(queryString.ToString());
+                }
+                GlobalContext.LogMessage(queryString.ToString());
                 clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 500, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
                 foreach (CSVTable table in queryCSV.CSVTables)
                 {
@@ -1308,8 +1688,8 @@ namespace CreateChilServices
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message + " Det: " + ex.StackTrace);
-                GlobalContext.LogMessage(ex.Message + " Det: " + ex.StackTrace);
+                MessageBox.Show("UpdatePackageCost:+ " + ex.Message + " Det: " + ex.StackTrace);
+                GlobalContext.LogMessage("UpdatePackageCost: " + ex.Message + " Det: " + ex.StackTrace);
             }
         }
         public static bool IsBetween(DateTime input, DateTime date1, DateTime date2)
@@ -1610,7 +1990,7 @@ namespace CreateChilServices
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message + " Det: " + ex.StackTrace);
+                MessageBox.Show("UpdatePaxPrice: " + ex.Message + " Det: " + ex.StackTrace);
             }
 
         }
@@ -1683,7 +2063,7 @@ namespace CreateChilServices
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message + " InformativeNJ: " + ex.StackTrace);
+                MessageBox.Show(ex.Message + " BrokenPackage: " + ex.StackTrace);
             }
         }
         public void SearchPayable(Services service)
@@ -1699,7 +2079,7 @@ namespace CreateChilServices
                 body +=
                     "\"Broken\":true";
                 body += "}";
-                GlobalContext.LogMessage(body);
+                //GlobalContext.LogMessage(body);
                 request.AddParameter("application/json", body, ParameterType.RequestBody);
                 // easily add HTTP Headers
                 request.AddHeader("Authorization", "Basic ZW9saXZhczpTaW5lcmd5KjIwMTg=");
@@ -1722,10 +2102,45 @@ namespace CreateChilServices
                 MessageBox.Show(ex.Message + " InformativeNJ: " + ex.StackTrace);
             }
         }
+        private ClaseParaPaquetes.RootObject GetAllPaquetesCostos()
+        {
+            try
+            {
+                ClaseParaPaquetes.RootObject rootObjectCat = new ClaseParaPaquetes.RootObject();
+
+                var client = new RestClient("https://iccs.bigmachines.com/");
+                string User = Encoding.UTF8.GetString(Convert.FromBase64String("aW1wbGVtZW50YWRvcg=="));
+                string Pass = Encoding.UTF8.GetString(Convert.FromBase64String("U2luZXJneSoyMDE4"));
+                client.Authenticator = new HttpBasicAuthenticator("servicios", "Sinergy*2018");
+                var request = new RestRequest("rest/v6/customCostosPaquetes/?totalResults=true", Method.GET);
+                IRestResponse response = client.Execute(request);
+                rootObjectCat = JsonConvert.DeserializeObject<ClaseParaPaquetes.RootObject>(response.Content);
+                if (rootObjectCat.items.Count > 0)
+                {
+                    MessageBox.Show(rootObjectCat.items.Capacity.ToString());
+                    return rootObjectCat;
+
+                }
+                else
+                {
+                    return null;
+                }
+
+
+            }
+            catch (Exception ex)
+            {
+                GlobalContext.LogMessage("GetAllPaquetesCostos: " + ex.Message + "Det" + ex.StackTrace);
+                return null;
+            }
+        }
+
         private double GetCostoPaquete(Services service, string parentNumber, string[] vuelos, string main, string clase)
         {
             try
             {
+
+
                 int fbo = 0;
                 if (SRType == "FBO")
                 {
@@ -1737,39 +2152,53 @@ namespace CreateChilServices
                 }
                 double amount = 0;
 
-                var client = new RestClient("https://iccs.bigmachines.com/");
-                string User = Encoding.UTF8.GetString(Convert.FromBase64String("aW1wbGVtZW50YWRvcg=="));
-                string Pass = Encoding.UTF8.GetString(Convert.FromBase64String("U2luZXJneSoyMDE4"));
-                client.Authenticator = new HttpBasicAuthenticator("servicios", "Sinergy*2018");
-
-                string definicion = "?totalResults=true&q={str_item_number:'" + service.ItemNumber + "'" +
-                                ",str_ft_arrival:'" + vuelos[0] + "'" +
-                                ",str_ft_depart:'" + vuelos[1] + "'" +
-                                ",str_schedule_type:'" + main + "'" +
-                                ",bol_int_fbo:'" + fbo + "'" +
-                                ",$and:[{$or:[{str_icao_iata_code:'IO_AEREO_" + service.Airport + "'},{str_icao_iata_code:{$exists:false}}]}," +
-                                "{$or:[{str_aircraft_type:'" + ICAOId + "'},{str_aircraft_type:{$exists:false}}]}]}";
-                GlobalContext.LogMessage(definicion);
-                var request = new RestRequest("rest/v6/customCostosPaquetes/" + definicion, Method.GET);
-                IRestResponse response = client.Execute(request);
-                ClaseParaPaquetes.RootObject rootObjectCat = JsonConvert.DeserializeObject<ClaseParaPaquetes.RootObject>(response.Content);
-                if (rootObjectCat.items.Count > 0)
+                if (PaquetesCostos == null)
                 {
-                    amount = rootObjectCat.items[0].flo_cost;
-                    Currency = rootObjectCat.items[0].str_currency_code;
-                    Supplier = string.IsNullOrEmpty(rootObjectCat.items[0].str_vendor_name) ? "NO SUPPLIER" : rootObjectCat.items[0].str_vendor_name;
-                    OUM = rootObjectCat.items[0].str_uom_code;
+                    var client = new RestClient("https://iccs.bigmachines.com/");
+                    string User = Encoding.UTF8.GetString(Convert.FromBase64String("aW1wbGVtZW50YWRvcg=="));
+                    string Pass = Encoding.UTF8.GetString(Convert.FromBase64String("U2luZXJneSoyMDE4"));
+                    client.Authenticator = new HttpBasicAuthenticator("servicios", "Sinergy*2018");
+
+                    string definicion = "?totalResults=true&q={str_item_number:'" + service.ItemNumber + "'" +
+                                    ",str_ft_arrival:'" + vuelos[0] + "'" +
+                                    ",str_ft_depart:'" + vuelos[1] + "'" +
+                                    ",str_schedule_type:'" + main + "'" +
+                                    ",bol_int_fbo:'" + fbo + "'" +
+                                    ",$and:[{$or:[{str_icao_iata_code:'IO_AEREO_" + service.Airport + "'},{str_icao_iata_code:{$exists:false}}]}," +
+                                    "{$or:[{str_aircraft_type:'" + ICAOId + "'},{str_aircraft_type:{$exists:false}}]}]}";
+                    GlobalContext.LogMessage(definicion);
+                    var request = new RestRequest("rest/v6/customCostosPaquetes/" + definicion, Method.GET);
+                    IRestResponse response = client.Execute(request);
+                    ClaseParaPaquetes.RootObject rootObjectCat = JsonConvert.DeserializeObject<ClaseParaPaquetes.RootObject>(response.Content);
+                    if (rootObjectCat.items.Count > 0)
+                    {
+                        amount = rootObjectCat.items[0].flo_cost;
+                        Currency = rootObjectCat.items[0].str_currency_code;
+                        Supplier = string.IsNullOrEmpty(rootObjectCat.items[0].str_vendor_name) ? "NO SUPPLIER" : rootObjectCat.items[0].str_vendor_name;
+                        OUM = rootObjectCat.items[0].str_uom_code;
+                    }
+                    else
+                    {
+                        amount = 0;
+                    }
                 }
                 else
                 {
-                    amount = 0;
+                    string definicion1 = "?totalResults=true&q={str_item_number:'" + service.ItemNumber + "'" +
+                                       ",str_ft_arrival:'" + vuelos[0] + "'" +
+                                       ",str_ft_depart:'" + vuelos[1] + "'" +
+                                       ",str_schedule_type:'" + main + "'" +
+                                       ",bol_int_fbo:'" + fbo + "'}";
+
+                    var filtro = PaquetesCostos.items.Where(l => l.str_item_number == service.ItemNumber).Where(l => l.bol_int_fbo == fbo).Where(l => l.str_schedule_type == main).Where(l => l.str_ft_arrival == vuelos[0]).Where(l => l.str_ft_depart == vuelos[1]).ToList();
+                    GlobalContext.LogMessage(filtro.Count().ToString() + ":" + definicion1);
                 }
 
                 return amount;
             }
             catch (Exception ex)
             {
-                GlobalContext.LogMessage(ex.StackTrace);
+                GlobalContext.LogMessage("GetCosto: " + ex.Message + "Det: " + ex.StackTrace);
                 return 0;
             }
         }
