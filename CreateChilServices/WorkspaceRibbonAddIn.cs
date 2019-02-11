@@ -96,6 +96,7 @@ namespace CreateChilServices
                             if (Packages > 0)
                             {
                                 UpdatePackageCost();
+                                UpdatePayables();
                                 MessageBox.Show("Packages Found: " + Packages + "\n" + "Child Services Created: " + BabyPackages + "\n" + "Child Payables Created: " + BabyPayables);
                             }
                             else
@@ -105,7 +106,7 @@ namespace CreateChilServices
                             RecordContext.ExecuteEditorCommand(EditorCommand.Save);
                             watch.Stop();
                             elapsedMs = watch.Elapsed;
-
+                            //UpdatePayables();
                             GlobalContext.LogMessage("Packages & Message: " + elapsedMs.TotalSeconds.ToString() + " Secs");
                             Cursor.Current = Cursors.Default;
 
@@ -116,6 +117,34 @@ namespace CreateChilServices
             catch (Exception ex)
             {
                 MessageBox.Show("Error en Click: " + ex.Message + "Det" + ex.StackTrace);
+            }
+        }
+        private void UpdatePayables()
+        {
+            try
+            {
+                ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
+                APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
+                clientInfoHeader.AppID = "Query Example";
+                String queryString = "SELECT Sum(TicketAmount),Services FROM CO.Payables WHERE Services.Incident =" + IncidentID + " GROUP BY Services";
+                GlobalContext.LogMessage(queryString);
+                clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 10000, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
+                foreach (CSVTable table in queryCSV.CSVTables)
+                {
+                    String[] rowData = table.Rows;
+                    foreach (String data in rowData)
+                    {
+                        Char delimiter = '|';
+                        string[] substrings = data.Split(delimiter);
+                        double amount = Convert.ToDouble(substrings[0]);
+                        string service = substrings[1];
+                        UpdatePaxPrice(service, amount);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("UpdpatePayables" + ex.Message + " Det :" + ex.StackTrace);
             }
         }
         public bool Init()
@@ -229,7 +258,6 @@ namespace CreateChilServices
         {
             try
             {
-
                 ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
                 APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
                 clientInfoHeader.AppID = "Query Example";
@@ -357,6 +385,10 @@ namespace CreateChilServices
                                     {
                                         foreach (NIVEL_1 n1 in res.PAQUETE.NIVEL_1)
                                         {
+                                            if (string.IsNullOrEmpty(n1.DESCRIPTION_HIJO))
+                                            {
+                                                continue;
+                                            }
                                             ComponentChild componentchild1 = new ComponentChild()
                                             {
                                                 ParentPaxId = componentparent.ID,
@@ -927,6 +959,21 @@ namespace CreateChilServices
             try
             {
                 int insert = 0;
+                component.MCreated = "1";
+                if (component.ParentPaxId != Convert.ToDouble(ParentId) && CustomerName.Contains("NETJETS"))
+                {
+                    component.Informativo = "1";
+                }
+                if (component.ParentPaxId == Convert.ToDouble(ParentId) && ParentItemDescription.Contains("NJ") && CustomerName.Contains("NETJETS"))
+                {
+                    component.Componente = "0";
+                }
+                if (component.ItemNumber == "ASFIEAP357" && CustomerName.Contains("NETJETS"))
+                {
+                    component.Informativo = "1";
+                }
+
+
                 var client = new RestClient("https://iccsmx.custhelp.com/");
                 var request = new RestRequest("/services/rest/connect/v1.4/CO.Services/", Method.POST)
                 {
@@ -1471,10 +1518,10 @@ namespace CreateChilServices
                 ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
                 APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
                 clientInfoHeader.AppID = "Query Example";
-                String queryString = "SELECT ID,Services,Itinerary,ItemNumber,Airport,ItemDescription  FROM CO.Services  WHERE Incident =" + IncidentID + "  AND Paquete = '0' AND (Componente = '1' AND Broken = 0) Order BY Services.CreatedTime ASC";
+                String queryString = "SELECT ID,Services,Itinerary,ItemNumber,Airport,ItemDescription,Services.ItemNumber  FROM CO.Services  WHERE Incident =" + IncidentID + "  AND Paquete = '0' AND (Componente = '1' AND Broken = 0) Order BY Services.CreatedTime ASC";
                 if (CustomerName.Contains("NETJETS"))
                 {
-                    queryString = "SELECT ID,Services,Itinerary,ItemNumber,Airport,ItemDescription FROM CO.Services WHERE Incident =" + IncidentID + " AND(Paquete = '0' OR Componente = '0') AND Services IS NOT NULL AND Broken = 0 ORDER BY Services.CreatedTime ASC";
+                    queryString = "SELECT ID,Services,Itinerary,ItemNumber,Airport,ItemDescription,Services.ItemNumber FROM CO.Services WHERE Incident =" + IncidentID + " AND(Paquete = '0' OR Componente = '0') AND Services IS NOT NULL AND Broken = 0 ORDER BY Services.CreatedTime ASC";
                 }
                 GlobalContext.LogMessage(queryString.ToString());
                 clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 500, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
@@ -1493,6 +1540,8 @@ namespace CreateChilServices
                         service.ItemNumber = substrings[3];
                         service.Airport = substrings[4];
                         service.Description = substrings[5];
+                        service.ItemDescPadre = substrings[6];
+                        BrokenPackage(service.ID);
                         services.Add(service);
                     }
                 }
@@ -1505,6 +1554,10 @@ namespace CreateChilServices
                     // GetItineraryHours(int.Parse(IdItinerary),whType);
                     foreach (Services item in services)
                     {
+                        if (item.ItemDescPadre == "LOGIROT0063")
+                        {
+                            continue;
+                        }
                         SearchPayable(item);
                         var watch = System.Diagnostics.Stopwatch.StartNew();
                         string[] vuelos = GetCountryLookItinerary(int.Parse(item.Itinerary));
@@ -2117,7 +2170,7 @@ namespace CreateChilServices
                 rootObjectCat = JsonConvert.DeserializeObject<ClaseParaPaquetes.RootObject>(response.Content);
                 if (rootObjectCat.items.Count > 0)
                 {
-                    MessageBox.Show(rootObjectCat.items.Capacity.ToString());
+
                     return rootObjectCat;
 
                 }
@@ -2152,7 +2205,7 @@ namespace CreateChilServices
                 }
                 double amount = 0;
 
-                if (PaquetesCostos == null)
+                if (PaquetesCostos != null)
                 {
                     var client = new RestClient("https://iccs.bigmachines.com/");
                     string User = Encoding.UTF8.GetString(Convert.FromBase64String("aW1wbGVtZW50YWRvcg=="));

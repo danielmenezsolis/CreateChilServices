@@ -28,6 +28,7 @@ namespace CreateChilServices
         public string FuelId { get; set; }
         public string CobroParticipacionNj { get; set; }
         public string ParticipacionCobro { get; set; }
+        public string ItemDescPadre { get; set; }
     }
     public class ComponentChild
     {
