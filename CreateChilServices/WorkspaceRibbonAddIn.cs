@@ -41,10 +41,18 @@ namespace CreateChilServices
         public string Supplier { get; set; }
         public string OUM { get; set; }
         public string ICAOId { get; set; }
-        // public string IdItinerary { get; set; }
         public string CustomerName { get; set; }
         public string ParentItemDescription { get; set; }
         public string ParentId { get; set; }
+
+        //Obtención de todos los precios
+        public string main = "MAIN";
+        public int fbo = 0;
+        public string airport = "AIRPORT";
+        string[] arridepart;
+        public int IdItinerary = 0;
+
+
         public ClaseParaPaquetes.RootObject PaquetesCostos { get; set; }
 
         public WorkspaceRibbonAddIn(bool inDesignMode, IRecordContext RecordContext, IGlobalContext GlobalContext)
@@ -95,8 +103,23 @@ namespace CreateChilServices
                             watch = Stopwatch.StartNew();
                             if (Packages > 0)
                             {
+                                // LLEGADA Y SALIDA
+                                arridepart = GetCountryLookItinerary(IdItinerary);
+                                // FBO
+                                if (SRType == "FBO")
+                                {
+                                    fbo = 1;
+                                }
+                                else if (SRType == "FCC")
+                                {
+                                    fbo = GetFBOValue(IdItinerary.ToString());
+                                }
+                                // MAIN HOUR
+                                GetItineraryHours(IdItinerary);
+                                main = GetMainHour(ATA.ToString(), ATD.ToString());
+
                                 UpdatePackageCost();
-                                UpdatePayables();
+                                //UpdatePayables();
                                 MessageBox.Show("Packages Found: " + Packages + "\n" + "Child Services Created: " + BabyPackages + "\n" + "Child Payables Created: " + BabyPayables);
                             }
                             else
@@ -126,7 +149,7 @@ namespace CreateChilServices
                 ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
                 APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
                 clientInfoHeader.AppID = "Query Example";
-                String queryString = "SELECT Sum(TicketAmount),Services FROM CO.Payables AND Services.Paquete = '1' WHERE Services.Incident =" + IncidentID + " GROUP BY Services";
+                String queryString = "SELECT Sum(TicketAmount),Services FROM CO.Payables WHERE Services.Incident =" + IncidentID + " AND Services.Paquete = '1' GROUP BY Services";
                 GlobalContext.LogMessage(queryString);
                 clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 10000, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
                 foreach (CSVTable table in queryCSV.CSVTables)
@@ -287,6 +310,16 @@ namespace CreateChilServices
                                 InformativeNJ(ParentId);
                             }
                             NGetComponents(component);
+                            // ITINERARIO
+                            if (IdItinerary == 0)
+                            {
+                                IdItinerary = component.Itinerary;
+                            }
+                            // AEROPUERTO
+                            if (airport == "AIRPORT")
+                            {
+                                airport = component.Airport;
+                            }
                             //GetComponents(component);
                         }
                     }
@@ -1509,8 +1542,6 @@ namespace CreateChilServices
             {
 
                 PaquetesCostos = GetAllPaquetesCostos();
-
-
                 double antelacion = 0;
                 double extension = 0;
                 double minover = 0;
@@ -1560,10 +1591,8 @@ namespace CreateChilServices
                         }
                         SearchPayable(item);
                         var watch = System.Diagnostics.Stopwatch.StartNew();
-                        string[] vuelos = GetCountryLookItinerary(int.Parse(item.Itinerary));
-                        GetItineraryHours(int.Parse(item.Itinerary));
-                        string MH = GetMainHour(ATA.ToString(), ATD.ToString());
-                        item.Cost = GetCostoPaquete(item, getItemNumber(Convert.ToInt32(item.ParentPax)), vuelos, MH, clase).ToString();
+                        item.Cost = GetCostoPaquete(item, getItemNumber(Convert.ToInt32(item.ParentPax)), arridepart, main, clase).ToString();
+
                         if (item.Cost == "0")
                         {
                             continue;
@@ -2160,26 +2189,28 @@ namespace CreateChilServices
             try
             {
                 ClaseParaPaquetes.RootObject rootObjectCat = new ClaseParaPaquetes.RootObject();
-
                 var client = new RestClient("https://iccs.bigmachines.com/");
                 string User = Encoding.UTF8.GetString(Convert.FromBase64String("aW1wbGVtZW50YWRvcg=="));
                 string Pass = Encoding.UTF8.GetString(Convert.FromBase64String("U2luZXJneSoyMDE4"));
                 client.Authenticator = new HttpBasicAuthenticator("servicios", "Sinergy*2018");
-                var request = new RestRequest("rest/v6/customCostosPaquetes/?totalResults=true", Method.GET);
+                string definicion = "?totalResults=true&q={str_ft_arrival:'" + arridepart[0].ToString() + "'" +
+                                   ",str_ft_depart:'" + arridepart[1].ToString() + "'" +
+                                   ",str_schedule_type:'" + main + "'" +
+                                   ",bol_int_fbo:'" + fbo + "'" +
+                                   ",$and:[{$or:[{str_icao_iata_code:'IO_AEREO_" + airport + "'},{str_icao_iata_code:{$exists:false}}]}," +
+                                   "{$or:[{str_aircraft_type:'" + ICAOId + "'},{str_aircraft_type:{$exists:false}}]}]}";
+                var request = new RestRequest("rest/v6/customCostosPaquetes/" + definicion, Method.GET);
+                GlobalContext.LogMessage("AllCostosPaquetes: " + definicion);
                 IRestResponse response = client.Execute(request);
                 rootObjectCat = JsonConvert.DeserializeObject<ClaseParaPaquetes.RootObject>(response.Content);
                 if (rootObjectCat.items.Count > 0)
                 {
-
                     return rootObjectCat;
-
-                }
+                                    }
                 else
                 {
                     return null;
                 }
-
-
             }
             catch (Exception ex)
             {
@@ -2192,28 +2223,17 @@ namespace CreateChilServices
         {
             try
             {
-
-
-                int fbo = 0;
-                if (SRType == "FBO")
-                {
-                    fbo = 1;
-                }
-                else if (SRType == "FCC")
-                {
-                    fbo = GetFBOValue(service.Itinerary);
-                }
                 double amount = 0;
 
-                if (PaquetesCostos != null)
+                if (PaquetesCostos == null)
                 {
                     var client = new RestClient("https://iccs.bigmachines.com/");
                     string User = Encoding.UTF8.GetString(Convert.FromBase64String("aW1wbGVtZW50YWRvcg=="));
                     string Pass = Encoding.UTF8.GetString(Convert.FromBase64String("U2luZXJneSoyMDE4"));
                     client.Authenticator = new HttpBasicAuthenticator("servicios", "Sinergy*2018");
 
-                    string definicion = "?totalResults=true&q={str_item_number:'" + service.ItemNumber + "'" +
-                                    ",str_ft_arrival:'" + vuelos[0] + "'" +
+                    string definicion = "?totalResults=true&q={str_item_number:'" + service.ItemNumber + "'," +
+                                    "str_ft_arrival:'" + vuelos[0] + "'" +
                                     ",str_ft_depart:'" + vuelos[1] + "'" +
                                     ",str_schedule_type:'" + main + "'" +
                                     ",bol_int_fbo:'" + fbo + "'" +
@@ -2237,16 +2257,21 @@ namespace CreateChilServices
                 }
                 else
                 {
-                    string definicion1 = "?totalResults=true&q={str_item_number:'" + service.ItemNumber + "'" +
-                                       ",str_ft_arrival:'" + vuelos[0] + "'" +
-                                       ",str_ft_depart:'" + vuelos[1] + "'" +
-                                       ",str_schedule_type:'" + main + "'" +
-                                       ",bol_int_fbo:'" + fbo + "'}";
+                    var filtro = PaquetesCostos.items.Where(l => l.str_item_number == service.ItemNumber).ToList();
+                    GlobalContext.LogMessage(filtro.Count().ToString() + " :" + service.ItemNumber);
 
-                    var filtro = PaquetesCostos.items.Where(l => l.str_item_number == service.ItemNumber).Where(l => l.bol_int_fbo == fbo).Where(l => l.str_schedule_type == main).Where(l => l.str_ft_arrival == vuelos[0]).Where(l => l.str_ft_depart == vuelos[1]).ToList();
-                    GlobalContext.LogMessage(filtro.Count().ToString() + ":" + definicion1);
+                    foreach (ClaseParaPaquetes.Item rootObjectCat in filtro)
+                    {
+                        amount = rootObjectCat.flo_cost;
+                        Currency = rootObjectCat.str_currency_code;
+                        Supplier = string.IsNullOrEmpty(rootObjectCat.str_vendor_name) ? "NO SUPPLIER" : rootObjectCat.str_vendor_name;
+                        OUM = rootObjectCat.str_uom_code;
+                        if (rootObjectCat.str_client_category == clase)
+                        {
+                            continue;
+                        }
+                    }
                 }
-
                 return amount;
             }
             catch (Exception ex)
