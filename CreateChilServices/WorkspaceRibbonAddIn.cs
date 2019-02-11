@@ -126,7 +126,7 @@ namespace CreateChilServices
                 ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
                 APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
                 clientInfoHeader.AppID = "Query Example";
-                String queryString = "SELECT Sum(TicketAmount),Services FROM CO.Payables WHERE Services.Incident =" + IncidentID + " GROUP BY Services";
+                String queryString = "SELECT Sum(TicketAmount),Services FROM CO.Payables AND Services.Paquete = '1' WHERE Services.Incident =" + IncidentID + " GROUP BY Services";
                 GlobalContext.LogMessage(queryString);
                 clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 10000, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
                 foreach (CSVTable table in queryCSV.CSVTables)
@@ -2023,7 +2023,7 @@ namespace CreateChilServices
                     "\"Costo\":\"" + price + "\"";
 
                 body += "}";
-                //GlobalContext.LogMessage(body);
+                GlobalContext.LogMessage("Actualza desde Child:" + body);
                 request.AddParameter("application/json", body, ParameterType.RequestBody);
                 // easily add HTTP Headers
                 request.AddHeader("Authorization", "Basic ZW9saXZhczpTaW5lcmd5KjIwMTg=");
