@@ -51,6 +51,7 @@ namespace CreateChilServices
         public string airport = "AIRPORT";
         string[] arridepart;
         public int IdItinerary = 0;
+        public string claseCliente = "CLASE";
 
 
         public ClaseParaPaquetes.RootObject PaquetesCostos { get; set; }
@@ -105,6 +106,7 @@ namespace CreateChilServices
                             {
                                 // LLEGADA Y SALIDA
                                 arridepart = GetCountryLookItinerary(IdItinerary);
+                                claseCliente = GetClase();
                                 // FBO
                                 if (SRType == "FBO")
                                 {
@@ -1542,9 +1544,11 @@ namespace CreateChilServices
             {
 
                 PaquetesCostos = GetAllPaquetesCostos();
+                
                 double antelacion = 0;
                 double extension = 0;
                 double minover = 0;
+                
                 List<Services> services = new List<Services>();
                 ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
                 APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
@@ -1577,7 +1581,6 @@ namespace CreateChilServices
                 }
                 if (services.Count > 0)
                 {
-                    string clase = GetClase();
                     // MessageBox.Show("Itinerary ID: " + IdItinerary.ToString());
                     // ATA = getATAItinerary(Convert.ToInt32(IdItinerary));
                     // string whType = getWH();
@@ -1591,7 +1594,7 @@ namespace CreateChilServices
                         }
 
                         var watch = System.Diagnostics.Stopwatch.StartNew();
-                        item.Cost = GetCostoPaquete(item, getItemNumber(Convert.ToInt32(item.ParentPax)), arridepart, main, clase).ToString();
+                        item.Cost = GetCostoPaquete(item, getItemNumber(Convert.ToInt32(item.ParentPax)), claseCliente).ToString();
 
                         if (item.Cost == "0")
                         {
@@ -1601,6 +1604,7 @@ namespace CreateChilServices
                         item.Quantity = "1";
                         minover = 0;
 
+                        
                         if (!AirportOpen24(Convert.ToInt32(item.Itinerary)) && (OUM == "MIN" || OUM == "HHR" || OUM == "HR"))
                         {
                             int arrival = getArrivalAirport(Convert.ToInt32(item.Itinerary));
@@ -1642,6 +1646,7 @@ namespace CreateChilServices
                                 }
                             }
                         }
+                        
                         switch (OUM)
                         {
                             case "TW":
@@ -1656,12 +1661,14 @@ namespace CreateChilServices
                                 double c;
                                 if (double.TryParse(item.Cost, out c))
                                 {
-                                    if (minover > 0 && item.ItemNumber != "PFEESAF0009")
-                                    {
-                                        TimeSpan t = TimeSpan.FromMinutes(minover);
-                                        item.Quantity = (Math.Ceiling(t.TotalMinutes / 30)).ToString();
-                                        item.Cost = (Convert.ToDouble(item.Cost) * Convert.ToDouble(item.Quantity)).ToString();
-                                    }
+                                    // if (minover > 0 ) && item.ItemNumber != "PFEESAF0009")
+                                    // {
+                                    // TimeSpan t = TimeSpan.FromMinutes(minover);
+                                    // item.Quantity = (Math.Ceiling(t.TotalMinutes / 30)).ToString();
+                                    item.Quantity = (Math.Ceiling(GetMinutesLeg() / 30)).ToString();
+                                    item.Cost = (Convert.ToDouble(item.Cost) * Convert.ToDouble(item.Quantity)).ToString();
+                                }
+                                    /*
                                     else if (item.ItemNumber == "PFEESAF0009")
                                     {
                                         item.Quantity = "4";
@@ -1669,22 +1676,24 @@ namespace CreateChilServices
                                         item.Cost = (Convert.ToDouble(tw * Convert.ToDouble(item.Cost)) * 4).ToString();
                                         // MessageBox.Show("Cost: " + item.Cost);
                                     }
-                                    else
-                                    {
-                                        item.Cost = "0";
-                                    }
+                                    */
+                                else
+                                {
+                                    item.Cost = "0";
                                 }
+                                //}
                                 break;
                             case "HR":
                                 double d;
                                 if (double.TryParse(item.Cost, out d))
                                 {
-                                    if (minover > 0 && item.ItemNumber != "PFEESAF0009")
-                                    {
-                                        TimeSpan t = TimeSpan.FromMinutes(minover);
-                                        item.Quantity = Math.Ceiling(t.TotalHours).ToString();
+                                    // if (minover > 0) && item.ItemNumber != "PFEESAF0009")
+                                    // {
+                                        // TimeSpan t = TimeSpan.FromMinutes(minover);
+                                        item.Quantity = (Math.Ceiling(GetMinutesLeg() / 60)).ToString();
                                         item.Cost = (Convert.ToDouble(item.Cost) * Convert.ToDouble(item.Quantity)).ToString();
                                     }
+                                    /*
                                     else if (item.ItemNumber == "PFEESAF0009")
                                     {
                                         item.Quantity = "2";
@@ -1692,26 +1701,27 @@ namespace CreateChilServices
                                         item.Cost = (Convert.ToDouble(tw * Convert.ToDouble(item.Cost)) * 2).ToString();
                                         // MessageBox.Show("Cost: " + item.Cost);
                                     }
+                                    */
                                     else
                                     {
                                         item.Cost = "0";
-                                    }
+                                    // }
                                 }
                                 break;
                             case "MIN":
                                 double e;
                                 if (double.TryParse(item.Cost, out e))
                                 {
-                                    if (minover > 0)
-                                    {
-                                        TimeSpan t = TimeSpan.FromMinutes(minover);
-                                        item.Quantity = Math.Ceiling(t.TotalMinutes).ToString();
+                                    // if (minover > 0)
+                                    // {
+                                        // TimeSpan t = TimeSpan.FromMinutes(minover);
+                                        item.Quantity = Math.Ceiling(GetMinutesLeg()).ToString();
                                         item.Cost = (Convert.ToDouble(item.Cost) * Convert.ToDouble(item.Quantity)).ToString();
                                     }
                                     else
                                     {
                                         item.Cost = "0";
-                                    }
+                                    // }
                                 }
                                 break;
                         }
@@ -1840,6 +1850,43 @@ namespace CreateChilServices
             {
                 MessageBox.Show("getATAItinerary: " + ex.Message + "Detail: " + ex.StackTrace);
                 return DateTime.Now;
+            }
+        }
+        public double GetMinutesLeg()
+        {
+            try
+            {
+                double minutes = 0;
+                ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
+                APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
+                clientInfoHeader.AppID = "Query Example";
+                //String queryString = "SELECT (Date_Diff(ATA_ZUTC,ATD_ZUTC)/60) FROM CO.Itinerary WHERE ID =" + Itinerarie + "";
+                String queryString = "SELECT ATA,ATATime,ATD,ATDTime FROM CO.Itinerary WHERE ID = " + IdItinerary.ToString();
+                GlobalContext.LogMessage(queryString);
+                clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
+                foreach (CSVTable table in queryCSV.CSVTables)
+                {
+                    String[] rowData = table.Rows;
+                    foreach (String data in rowData)
+                    {
+                        Char delimiter = '|';
+                        string[] substrings = data.Split(delimiter);
+                        DateTime ATA = DateTime.Parse(substrings[0] + " " + substrings[1]);
+                        DateTime ATD = DateTime.Parse(substrings[2] + " " + substrings[3]);
+                        minutes = (ATD - ATA).TotalMinutes;
+                    }
+                }
+                if (claseCliente == "ASI_SECURITY")
+                {
+                    minutes = minutes - 120;
+                }
+                TimeSpan t = TimeSpan.FromMinutes(minutes);
+                return Math.Ceiling(t.TotalMinutes);
+            }
+            catch (Exception ex)
+            {
+                GlobalContext.LogMessage("GetMinutesLeg: " + ex.Message + "Det: " + ex.StackTrace);
+                return 0;
             }
         }
         public DateTime getATDItinerary(int Itinerarie)
@@ -2219,7 +2266,7 @@ namespace CreateChilServices
             }
         }
 
-        private double GetCostoPaquete(Services service, string parentNumber, string[] vuelos, string main, string clase)
+        private double GetCostoPaquete(Services service, string parentNumber, string clase)
         {
             try
             {
@@ -2233,8 +2280,8 @@ namespace CreateChilServices
                     client.Authenticator = new HttpBasicAuthenticator("servicios", "Sinergy*2018");
 
                     string definicion = "?totalResults=true&q={str_item_number:'" + service.ItemNumber + "'," +
-                                    "str_ft_arrival:'" + vuelos[0] + "'" +
-                                    ",str_ft_depart:'" + vuelos[1] + "'" +
+                                    "str_ft_arrival:'" + arridepart[0] + "'" +
+                                    ",str_ft_depart:'" + arridepart[1] + "'" +
                                     ",str_schedule_type:'" + main + "'" +
                                     ",bol_int_fbo:'" + fbo + "'" +
                                     ",$and:[{$or:[{str_icao_iata_code:'IO_AEREO_" + service.Airport + "'},{str_icao_iata_code:{$exists:false}}]}," +
