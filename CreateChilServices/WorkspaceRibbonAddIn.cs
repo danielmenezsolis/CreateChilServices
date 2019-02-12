@@ -1572,7 +1572,6 @@ namespace CreateChilServices
                         service.Airport = substrings[4];
                         service.Description = substrings[5];
                         service.ItemDescPadre = substrings[6];
-                        BrokenPackage(service.ID);
                         services.Add(service);
                     }
                 }
@@ -1585,11 +1584,12 @@ namespace CreateChilServices
                     // GetItineraryHours(int.Parse(IdItinerary),whType);
                     foreach (Services item in services)
                     {
+                        SearchPayable(item);
                         if (item.ItemDescPadre == "LOGIROT0063")
                         {
                             continue;
                         }
-                        SearchPayable(item);
+
                         var watch = System.Diagnostics.Stopwatch.StartNew();
                         item.Cost = GetCostoPaquete(item, getItemNumber(Convert.ToInt32(item.ParentPax)), arridepart, main, clase).ToString();
 
@@ -2206,7 +2206,7 @@ namespace CreateChilServices
                 if (rootObjectCat.items.Count > 0)
                 {
                     return rootObjectCat;
-                                    }
+                }
                 else
                 {
                     return null;
