@@ -1066,8 +1066,8 @@ namespace CreateChilServices
                 body += "\"id\":" + Convert.ToInt32(component.Incident) + "";
                 body += "},";
                 body += "\"Informativo\":\"" + component.Informativo + "\"," +
-                 "\"ItemDescription\":\"" + component.ItemDescription + "\"," +
-                 "\"ItemNumber\":\"" + component.ItemNumber + "\",";
+                 "\"ItemDescription\":\"" + component.ItemDescription.Trim() + "\"," +
+                 "\"ItemNumber\":\"" + component.ItemNumber.Trim() + "\",";
                 if (component.Itinerary != 0)
                 {
                     body += "\"Itinerary\":";
@@ -1544,11 +1544,11 @@ namespace CreateChilServices
             {
 
                 PaquetesCostos = GetAllPaquetesCostos();
-                
+
                 double antelacion = 0;
                 double extension = 0;
                 double minover = 0;
-                
+
                 List<Services> services = new List<Services>();
                 ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
                 APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
@@ -1604,7 +1604,7 @@ namespace CreateChilServices
                         item.Quantity = "1";
                         minover = 0;
 
-                        
+
                         if (!AirportOpen24(Convert.ToInt32(item.Itinerary)) && (OUM == "MIN" || OUM == "HHR" || OUM == "HR"))
                         {
                             int arrival = getArrivalAirport(Convert.ToInt32(item.Itinerary));
@@ -1646,7 +1646,7 @@ namespace CreateChilServices
                                 }
                             }
                         }
-                        
+
                         switch (OUM)
                         {
                             case "TW":
@@ -1668,15 +1668,15 @@ namespace CreateChilServices
                                     item.Quantity = (Math.Ceiling(GetMinutesLeg() / 30)).ToString();
                                     item.Cost = (Convert.ToDouble(item.Cost) * Convert.ToDouble(item.Quantity)).ToString();
                                 }
-                                    /*
-                                    else if (item.ItemNumber == "PFEESAF0009")
-                                    {
-                                        item.Quantity = "4";
-                                        double tw = Convert.ToDouble(String.IsNullOrEmpty(GetMTOW(ICAOId)) ? "0" : GetMTOW(ICAOId));
-                                        item.Cost = (Convert.ToDouble(tw * Convert.ToDouble(item.Cost)) * 4).ToString();
-                                        // MessageBox.Show("Cost: " + item.Cost);
-                                    }
-                                    */
+                                /*
+                                else if (item.ItemNumber == "PFEESAF0009")
+                                {
+                                    item.Quantity = "4";
+                                    double tw = Convert.ToDouble(String.IsNullOrEmpty(GetMTOW(ICAOId)) ? "0" : GetMTOW(ICAOId));
+                                    item.Cost = (Convert.ToDouble(tw * Convert.ToDouble(item.Cost)) * 4).ToString();
+                                    // MessageBox.Show("Cost: " + item.Cost);
+                                }
+                                */
                                 else
                                 {
                                     item.Cost = "0";
@@ -1689,22 +1689,22 @@ namespace CreateChilServices
                                 {
                                     // if (minover > 0) && item.ItemNumber != "PFEESAF0009")
                                     // {
-                                        // TimeSpan t = TimeSpan.FromMinutes(minover);
-                                        item.Quantity = (Math.Ceiling(GetMinutesLeg() / 60)).ToString();
-                                        item.Cost = (Convert.ToDouble(item.Cost) * Convert.ToDouble(item.Quantity)).ToString();
-                                    }
-                                    /*
-                                    else if (item.ItemNumber == "PFEESAF0009")
-                                    {
-                                        item.Quantity = "2";
-                                        double tw = Convert.ToDouble(String.IsNullOrEmpty(GetMTOW(ICAOId)) ? "0" : GetMTOW(ICAOId));
-                                        item.Cost = (Convert.ToDouble(tw * Convert.ToDouble(item.Cost)) * 2).ToString();
-                                        // MessageBox.Show("Cost: " + item.Cost);
-                                    }
-                                    */
-                                    else
-                                    {
-                                        item.Cost = "0";
+                                    // TimeSpan t = TimeSpan.FromMinutes(minover);
+                                    item.Quantity = (Math.Ceiling(GetMinutesLeg() / 60)).ToString();
+                                    item.Cost = (Convert.ToDouble(item.Cost) * Convert.ToDouble(item.Quantity)).ToString();
+                                }
+                                /*
+                                else if (item.ItemNumber == "PFEESAF0009")
+                                {
+                                    item.Quantity = "2";
+                                    double tw = Convert.ToDouble(String.IsNullOrEmpty(GetMTOW(ICAOId)) ? "0" : GetMTOW(ICAOId));
+                                    item.Cost = (Convert.ToDouble(tw * Convert.ToDouble(item.Cost)) * 2).ToString();
+                                    // MessageBox.Show("Cost: " + item.Cost);
+                                }
+                                */
+                                else
+                                {
+                                    item.Cost = "0";
                                     // }
                                 }
                                 break;
@@ -1714,13 +1714,13 @@ namespace CreateChilServices
                                 {
                                     // if (minover > 0)
                                     // {
-                                        // TimeSpan t = TimeSpan.FromMinutes(minover);
-                                        item.Quantity = Math.Ceiling(GetMinutesLeg()).ToString();
-                                        item.Cost = (Convert.ToDouble(item.Cost) * Convert.ToDouble(item.Quantity)).ToString();
-                                    }
-                                    else
-                                    {
-                                        item.Cost = "0";
+                                    // TimeSpan t = TimeSpan.FromMinutes(minover);
+                                    item.Quantity = Math.Ceiling(GetMinutesLeg()).ToString();
+                                    item.Cost = (Convert.ToDouble(item.Cost) * Convert.ToDouble(item.Quantity)).ToString();
+                                }
+                                else
+                                {
+                                    item.Cost = "0";
                                     // }
                                 }
                                 break;
