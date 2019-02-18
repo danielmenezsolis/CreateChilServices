@@ -52,7 +52,7 @@ namespace CreateChilServices
         string[] arridepart;
         public int IdItinerary = 0;
         public string claseCliente = "CLASE";
-
+        public string pswCPQ = "";
 
         public ClaseParaPaquetes.RootObject PaquetesCostos { get; set; }
 
@@ -66,6 +66,7 @@ namespace CreateChilServices
         }
         public new void Click()
         {
+            pswCPQ = getPassword("CPQ");
             try
             {
                 DialogResult dr = MessageBox.Show("Would you like to create child services from Fuel/Packages?",
@@ -2239,7 +2240,7 @@ namespace CreateChilServices
                 var client = new RestClient("https://iccs.bigmachines.com/");
                 string User = Encoding.UTF8.GetString(Convert.FromBase64String("aW1wbGVtZW50YWRvcg=="));
                 string Pass = Encoding.UTF8.GetString(Convert.FromBase64String("U2luZXJneSoyMDE4"));
-                client.Authenticator = new HttpBasicAuthenticator("servicios", "Sinergy*2018");
+                client.Authenticator = new HttpBasicAuthenticator("servicios", pswCPQ);
                 string definicion = "?totalResults=true&q={str_ft_arrival:'" + arridepart[0].ToString() + "'" +
                                    ",str_ft_depart:'" + arridepart[1].ToString() + "'" +
                                    ",str_schedule_type:'" + main + "'" +
@@ -2277,7 +2278,7 @@ namespace CreateChilServices
                     var client = new RestClient("https://iccs.bigmachines.com/");
                     string User = Encoding.UTF8.GetString(Convert.FromBase64String("aW1wbGVtZW50YWRvcg=="));
                     string Pass = Encoding.UTF8.GetString(Convert.FromBase64String("U2luZXJneSoyMDE4"));
-                    client.Authenticator = new HttpBasicAuthenticator("servicios", "Sinergy*2018");
+                    client.Authenticator = new HttpBasicAuthenticator("servicios", pswCPQ);
 
                     string definicion = "?totalResults=true&q={str_item_number:'" + service.ItemNumber + "'," +
                                     "str_ft_arrival:'" + arridepart[0] + "'" +
@@ -2344,6 +2345,24 @@ namespace CreateChilServices
                 }
             }
             return price;
+        }
+        public string getPassword(string application)
+        {
+            string password = "";
+            ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
+            APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
+            clientInfoHeader.AppID = "Query Example";
+            String queryString = "SELECT Password FROM CO.Password WHERE Aplicacion='" + application + "'";
+            clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
+            foreach (CSVTable table in queryCSV.CSVTables)
+            {
+                String[] rowData = table.Rows;
+                foreach (String data in rowData)
+                {
+                    password = String.IsNullOrEmpty(data) ? "" : data;
+                }
+            }
+            return password;
         }
         public string GetClase()
         {
