@@ -1543,13 +1543,10 @@ namespace CreateChilServices
         {
             try
             {
-
                 PaquetesCostos = GetAllPaquetesCostos();
-
                 double antelacion = 0;
                 double extension = 0;
                 double minover = 0;
-
                 List<Services> services = new List<Services>();
                 ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
                 APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
@@ -1604,8 +1601,6 @@ namespace CreateChilServices
                         item.UnitCost = item.Cost;
                         item.Quantity = "1";
                         minover = 0;
-
-
                         if (!AirportOpen24(Convert.ToInt32(item.Itinerary)) && (OUM == "MIN" || OUM == "HHR" || OUM == "HR"))
                         {
                             int arrival = getArrivalAirport(Convert.ToInt32(item.Itinerary));
