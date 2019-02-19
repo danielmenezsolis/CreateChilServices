@@ -208,7 +208,7 @@ namespace CreateChilServices
             ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
             APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
             clientInfoHeader.AppID = "Query Example";
-            String queryString = "SELECT CustomFields.co.Aircraft.AircraftType1.ICAODesignator  FROM Incident WHERE ID =" + Incident;
+            String queryString = "SELECT CustomFields.co.Aircraft.AircraftType1.ICAODesignator FROM Incident WHERE ID = " + Incident;
             clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
             foreach (CSVTable table in queryCSV.CSVTables)
             {
@@ -1651,7 +1651,7 @@ namespace CreateChilServices
                                 if (double.TryParse(item.Cost, out b))
                                 {
                                     item.Quantity = GetMTOW(ICAOId);
-                                    item.Cost = GetMTOWPrice(item.Cost);
+                                    item.UnitCost = GetMTOWPrice(item.Cost);
                                 }
                                 break;
                             case "HHR":
@@ -1662,19 +1662,19 @@ namespace CreateChilServices
                                     // {
                                     // TimeSpan t = TimeSpan.FromMinutes(minover);
                                     // item.Quantity = (Math.Ceiling(t.TotalMinutes / 30)).ToString();
-
                                     if (item.ItemNumber == "PFEESAF0009")
                                     {
                                         item.Quantity = "4";
                                         double tw = Convert.ToDouble(String.IsNullOrEmpty(GetMTOW(ICAOId)) ? "0" : GetMTOW(ICAOId));
-                                        item.Cost = (Convert.ToDouble(tw * Convert.ToDouble(item.Cost)) * 4).ToString();
+                                        //item.UnitCost = tw
+                                        item.UnitCost = (tw*Convert.ToDouble(item.Cost)).ToString();
                                         // MessageBox.Show("Cost: " + item.Cost);
-                                    }
+                                    }/*
                                     else
                                     {
                                         item.Quantity = (Math.Ceiling(GetMinutesLeg() / 30)).ToString();
                                         item.Cost = (Convert.ToDouble(item.Cost) * Convert.ToDouble(item.Quantity)).ToString();
-                                    }
+                                    }*/
                                 }
                                 /*
                                 else if (item.ItemNumber == "PFEESAF0009")
@@ -1702,14 +1702,14 @@ namespace CreateChilServices
                                     {
                                         item.Quantity = "2";
                                         double tw = Convert.ToDouble(String.IsNullOrEmpty(GetMTOW(ICAOId)) ? "0" : GetMTOW(ICAOId));
-                                        item.Cost = (Convert.ToDouble(tw * Convert.ToDouble(item.Cost)) * 2).ToString();
+                                        item.UnitCost = (tw * Convert.ToDouble(item.Cost)).ToString();
                                         // MessageBox.Show("Cost: " + item.Cost);
-                                    }
+                                    }/*
                                     else
                                     {
                                         item.Quantity = (Math.Ceiling(GetMinutesLeg() / 60)).ToString();
                                         item.Cost = (Convert.ToDouble(item.Cost) * Convert.ToDouble(item.Quantity)).ToString();
-                                    }
+                                    }*/
                                 }
                                 /*
                                 else if (item.ItemNumber == "PFEESAF0009")
@@ -1756,6 +1756,7 @@ namespace CreateChilServices
                         }
                         if (double.Parse(item.Cost) > 0)
                         {
+                            GlobalContext.LogMessage("itemCost: " + item.Cost);
                             InsertPayable(item);
                         }
                         var tot = watch.Elapsed;
@@ -2085,6 +2086,7 @@ namespace CreateChilServices
                 APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
                 clientInfoHeader.AppID = "Query Example";
                 String queryString = "SELECT Weight FROM CO.AircraftType WHERE ICAODesignator= '" + idICAO + "'";
+                GlobalContext.LogMessage("GetMTOW - " + queryString);
                 clientORN.QueryCSV(clientInfoHeader, aPIAccessRequest, queryString, 1, "|", false, false, out CSVTableSet queryCSV, out byte[] FileData);
                 foreach (CSVTable table in queryCSV.CSVTables)
                 {
