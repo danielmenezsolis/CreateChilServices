@@ -66,7 +66,7 @@ namespace CreateChilServices
         }
         public new void Click()
         {
-            pswCPQ = getPassword("CPQ");
+            
             try
             {
                 DialogResult dr = MessageBox.Show("Would you like to create child services from Fuel/Packages?",
@@ -79,6 +79,7 @@ namespace CreateChilServices
                         BabyPayables = 0;
                         if (Init())
                         {
+                            pswCPQ = getPassword("CPQ");
                             Incident = (IIncident)RecordContext.GetWorkspaceRecord(WorkspaceRecordType.Incident);
                             IncidentID = Incident.ID;
                             IList<ICfVal> IncCustomFieldList = Incident.CustomField;
@@ -1661,7 +1662,7 @@ namespace CreateChilServices
                                     // {
                                     // TimeSpan t = TimeSpan.FromMinutes(minover);
                                     // item.Quantity = (Math.Ceiling(t.TotalMinutes / 30)).ToString();
-                                    
+
                                     if (item.ItemNumber == "PFEESAF0009")
                                     {
                                         item.Quantity = "4";
@@ -2541,8 +2542,16 @@ namespace CreateChilServices
         }
         public bool Initialize(IGlobalContext GlobalContext)
         {
-            this.globalContext = GlobalContext;
-            return true;
+            try
+            {
+                this.globalContext = GlobalContext;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                GlobalContext.LogMessage("Det: " + ex.StackTrace);
+                return false;
+            }
         }
     }
 
