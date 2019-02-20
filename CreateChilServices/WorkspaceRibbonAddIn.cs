@@ -135,6 +135,8 @@ namespace CreateChilServices
                             elapsedMs = watch.Elapsed;
                             //UpdatePayables();
                             GlobalContext.LogMessage("Packages & Message: " + elapsedMs.TotalSeconds.ToString() + " Secs");
+                            RecordContext.RefreshWorkspace();
+                            RecordContext.ExecuteEditorCommand(EditorCommand.Refresh);
                             Cursor.Current = Cursors.Default;
 
                         }
@@ -1283,9 +1285,34 @@ namespace CreateChilServices
                 {
                     RequestFormat = DataFormat.Json
                 };
+                int uom_menu = 1;
+                switch (OUM)
+                {
+                    case "SER":
+                        uom_menu = 1;
+                        break;
+                    case "TW":
+                        uom_menu = 2;
+                        break;
+                    case "HR":
+                        uom_menu = 3;
+                        break;
+                    case "HHR":
+                        uom_menu = 4;
+                        break;
+                    case "MIN":
+                        uom_menu = 5;
+                        break;
+                    case "UND":
+                        uom_menu = 118;
+                        break;
+                }
                 string body = "{";
                 body += "\"Supplier\":\"" + Supplier + "\",";
-                body += "\"UOM\":\"" + OUM + "\",";
+                body += "\"UOM_Menu\":";
+                body += "{";
+                body += "\"id\":" + uom_menu.ToString() + "";
+                body += "},";
                 body += "\"ItemNumber\":\"" + service.ItemNumber + "\",";
                 body += "\"ItemDescription\":\"" + service.Description + "\",";
                 body += "\"UnitCost\":\"" + service.UnitCost + "\",";
