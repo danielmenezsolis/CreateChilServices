@@ -1286,6 +1286,7 @@ namespace CreateChilServices
                     RequestFormat = DataFormat.Json
                 };
                 int uom_menu = 1;
+                GlobalContext.LogMessage("uomInt = "+ uom_menu.ToString());
                 switch (OUM)
                 {
                     case "SER":
@@ -1317,7 +1318,7 @@ namespace CreateChilServices
                 body += "\"ItemDescription\":\"" + service.Description + "\",";
                 body += "\"UnitCost\":\"" + service.UnitCost + "\",";
                 body += "\"Quantity\":\"" + service.Quantity + "\",";
-                body += "\"TicketAmount\":\"" + TicketAmount + "\",";
+                body += "\"TicketAmount\":\"" + TicketAmount.ToString() + "\",";
                 body += "\"Currency\":";
                 body += "{";
                 body += "\"id\":" + (Currency == "MXN" ? 2 : 1).ToString() + "";

@@ -42,7 +42,7 @@
       <HintPath>..\packages\Newtonsoft.Json.11.0.2\lib\net45\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="RestSharp">
-      <HintPath>..\packages\RestSharp.106.5.4\lib\net452\RestSharp.dll</HintPath>
+      <HintPath>..\..\..\..\..\RightNowDev\AddIns\CreateChilServices\RestSharp.dll</HintPath>
     </Reference>
     <Reference Include="RightNow.AddIns.AddInViews, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
