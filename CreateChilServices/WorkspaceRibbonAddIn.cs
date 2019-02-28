@@ -1573,9 +1573,9 @@ namespace CreateChilServices
             try
             {
                 PaquetesCostos = GetAllPaquetesCostos();
-                double antelacion = 0;
-                double extension = 0;
-                double minover = 0;
+                //double antelacion = 0;
+                //double extension = 0;
+                //double minover = 0;
                 List<Services> services = new List<Services>();
                 ClientInfoHeader clientInfoHeader = new ClientInfoHeader();
                 APIAccessRequestHeader aPIAccessRequest = new APIAccessRequestHeader();
@@ -1629,6 +1629,7 @@ namespace CreateChilServices
                         }
                         item.UnitCost = item.Cost;
                         item.Quantity = "1";
+                        /*
                         minover = 0;
                         if (!AirportOpen24(Convert.ToInt32(item.Itinerary)) && (OUM == "MIN" || OUM == "HHR" || OUM == "HR"))
                         {
@@ -1671,7 +1672,7 @@ namespace CreateChilServices
                                 }
                             }
                         }
-
+                        */
                         switch (OUM)
                         {
                             case "TW":
@@ -1679,7 +1680,7 @@ namespace CreateChilServices
                                 if (double.TryParse(item.Cost, out b))
                                 {
                                     item.Quantity = GetMTOW(ICAOId);
-                                    item.UnitCost = GetMTOWPrice(item.Cost);
+                                    item.UnitCost = item.Cost;
                                 }
                                 break;
                             case "HHR":
@@ -1690,7 +1691,7 @@ namespace CreateChilServices
                                     // {
                                     // TimeSpan t = TimeSpan.FromMinutes(minover);
                                     // item.Quantity = (Math.Ceiling(t.TotalMinutes / 30)).ToString();
-                                    if (item.ItemNumber == "PFEESAF0009")
+                                    if (item.ItemNumber == "PFEESAF0009" || item.ItemNumber == "PARFEE0124")
                                     {
                                         item.Quantity = "4";
                                         double tw = Convert.ToDouble(String.IsNullOrEmpty(GetMTOW(ICAOId)) ? "0" : GetMTOW(ICAOId));
@@ -1809,6 +1810,7 @@ namespace CreateChilServices
                         */
                     }
                 }
+                /*
                 if (minover != 0)
                 {
                     if (antelacion > 0 && extension == 0)
@@ -1823,7 +1825,7 @@ namespace CreateChilServices
                     {
                         MessageBox.Show("OVERTIME ARRIVAL & DEPARTURE: " + minover + " minutes.");
                     }
-                }
+                }*/
             }
             catch (Exception ex)
             {
@@ -1982,21 +1984,6 @@ namespace CreateChilServices
                 }
             }
             return closes;
-        }
-        public string GetMTOWPrice(string cost)
-        {
-            try
-            {
-                double mtow = Convert.ToDouble(GetMTOW(ICAOId));
-                double costMTOW = Convert.ToDouble(cost);
-                double price = (mtow * costMTOW);
-                return Math.Round((price), 4).ToString();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("GetMTOWPrice: " + ex.Message + "Det:" + ex.StackTrace);
-                return "";
-            }
         }
         public bool AirportOpen24(int Itinerarie)
         {
