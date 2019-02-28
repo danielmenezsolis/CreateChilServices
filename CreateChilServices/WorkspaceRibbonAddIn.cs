@@ -1727,7 +1727,7 @@ namespace CreateChilServices
                                     // if (minover > 0) && item.ItemNumber != "PFEESAF0009")
                                     // {
                                     // TimeSpan t = TimeSpan.FromMinutes(minover);
-                                    if (item.ItemNumber == "PFEESAF0009")
+                                    if (item.ItemNumber == "PFEESAF0009"|| item.ItemNumber == "PARFEE0124")
                                     {
                                         item.Quantity = "2";
                                         double tw = Convert.ToDouble(String.IsNullOrEmpty(GetMTOW(ICAOId)) ? "0" : GetMTOW(ICAOId));
